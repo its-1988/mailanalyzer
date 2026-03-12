@@ -24,20 +24,32 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------
--*/
+*/
 
 use Laminas\Mail\Storage\Message;
 
+/**
+ * Extended MailCollector for the MailAnalyzer plugin.
+ * Provides direct access to mail storage for reading headers
+ * (Thread-Index, References) and managing emails.
+ */
 class PluginMailanalyzerMailCollector extends CommonDBTM
 {
     private $storage;
-    public $uid = -1;
+    public int $uid = -1;
 
-    public static function getTable($classname = null) {
+    public static function getTable($classname = null): string
+    {
         return MailCollector::getTable();
     }
 
-    public function connect()
+    /**
+     * Connect to the mail server using the collector configuration.
+     *
+     * @return void
+     * @throws \Exception If connection fails
+     */
+    public function connect(): void
     {
         $config = Toolbox::parseMailServerConnectString($this->fields['host']);
 
@@ -81,46 +93,60 @@ class PluginMailanalyzerMailCollector extends CommonDBTM
                 'id'     => $this->getID(),
                 'errors' => ($this->fields['errors'] + 1)
             ]);
-           // Any errors will cause an Exception.
+            Toolbox::logError("MailAnalyzer: Mail server connection failed - " . $e->getMessage());
             throw $e;
         }
     }
 
     /**
-     * Summary of getThreadIndex
-     * @param Message $message 
-     * @return string|null
+     * Extract Thread-Index header from an email message.
+     * The Thread-Index is a Microsoft Exchange-specific header used
+     * to track email conversation threads.
+     *
+     * @param Message $message The email message to extract from
+     * @return string|null Hex-encoded Thread-Index or null if not present
      */
-    public function getThreadIndex(Message $message) {
-        if (isset($message->threadindex)) {
-            if ($val = $message->getHeader('threadindex')) {
-                return bin2hex(substr(base64_decode($val->getFieldValue()), 6, 16 ));
+    public function getThreadIndex(Message $message): ?string
+    {
+        try {
+            if (isset($message->threadindex)) {
+                if ($val = $message->getHeader('threadindex')) {
+                    return bin2hex(substr(base64_decode($val->getFieldValue()), 6, 16));
+                }
             }
+        } catch (\Throwable $e) {
+            Toolbox::logWarning("MailAnalyzer: Failed to extract Thread-Index - " . $e->getMessage());
         }
         return null;
     }
 
     /**
-     * Summary of getMessage
-     * @param mixed $uid 
-     * @return Message
+     * Get a specific message from the mail storage by its unique ID.
+     *
+     * @param string $uid Unique ID of the message
+     * @return Message The email message
+     * @throws \Throwable If the message cannot be retrieved
      */
-    public function getMessage($uid) : Message {
-        return $this->storage->getMessage($this->storage->getNumberByUniqueId($uid));
+    public function getMessage(string $uid): Message
+    {
+        try {
+            return $this->storage->getMessage($this->storage->getNumberByUniqueId($uid));
+        } catch (\Throwable $e) {
+            Toolbox::logError("MailAnalyzer: Unable to get message UID: $uid - " . $e->getMessage());
+            throw $e;
+        }
     }
 
-        /**
-     * Delete mail from that mail box
+    /**
+     * Delete or move a mail from the mailbox.
      *
-     * @param string $uid    mail UID
-     * @param string $folder Folder to move (delete if empty) (default '')
-     *
-     * @return boolean
-     **/
-    public function deleteMails($uid, $folder = '')
+     * @param string $uid    Mail UID
+     * @param string $folder Folder to move to (delete if empty)
+     * @return bool True on success
+     */
+    public function deleteMails(string $uid, string $folder = ''): bool
     {
-
-       // Disable move support, POP protocol only has the INBOX folder
+        // Disable move support, POP protocol only has the INBOX folder
         if (strstr($this->fields['host'], "/pop")) {
             $folder = '';
         }
@@ -131,11 +157,10 @@ class PluginMailanalyzerMailCollector extends CommonDBTM
                 $this->storage->moveMessage($this->storage->getNumberByUniqueId($uid), $name);
                 return true;
             } catch (\Throwable $e) {
-               // raise an error and fallback to delete
-                trigger_error(
+                // raise an error and fallback to delete
+                Toolbox::logWarning(
                     sprintf(
-                    //TRANS: %1$s is the name of the folder, %2$s is the name of the receiver
-                        __('Invalid configuration for %1$s folder in receiver %2$s'),
+                        "MailAnalyzer: Invalid configuration for %s folder in receiver %s - falling back to delete",
                         $folder,
                         $this->getName()
                     )
@@ -145,6 +170,4 @@ class PluginMailanalyzerMailCollector extends CommonDBTM
         $this->storage->removeMessage($this->storage->getNumberByUniqueId($uid));
         return true;
     }
-
 }
-

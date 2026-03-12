@@ -26,7 +26,7 @@ along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------
  */
 
-include ( "../../../inc/includes.php");
+global $CFG_GLPI;
 
 Session::setActiveTab('Config', 'PluginMailanalyzerConfig$1');
 Html::redirect($CFG_GLPI["root_doc"]."/front/config.form.php");

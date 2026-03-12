@@ -26,22 +26,24 @@ along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------
  */
 
-define("PLUGIN_MAILANALYZER_VERSION", "4.0.0");
+define("PLUGIN_MAILANALYZER_VERSION", "4.1.0");
 // Minimal GLPI version, inclusive
 define('PLUGIN_MAILANALYZER_MIN_GLPI', '11.0.0');
 // Maximum GLPI version, exclusive
 define('PLUGIN_MAILANALYZER_MAX_GLPI', '11.1');
 
 /**
- * Summary of plugin_init_mailanalyzer
- * Init the hooks of the plugins
+ * Init the hooks of the plugin.
+ * Registers all event hooks, classes, and configuration pages.
+ *
+ * @return void
  */
-function plugin_init_mailanalyzer()
+function plugin_init_mailanalyzer(): void
 {
-
    global $PLUGIN_HOOKS;
 
    Plugin::registerClass('PluginMailAnalyzer');
+   Plugin::registerClass('PluginMailanalyzerStats');
 
    $PLUGIN_HOOKS['csrf_compliant']['mailanalyzer'] = true;
 
@@ -61,16 +63,15 @@ function plugin_init_mailanalyzer()
       Plugin::registerClass('PluginMailanalyzerConfig', ['addtabon' => 'Config']);
       $PLUGIN_HOOKS['config_page']['mailanalyzer'] = 'front/config.form.php';
    }
-
 }
 
 
 /**
- * Summary of plugin_version_mailanalyzer
- * Get the name and the version of the plugin
- * @return array
+ * Get the name and the version of the plugin.
+ *
+ * @return array Plugin metadata
  */
-function plugin_version_mailanalyzer()
+function plugin_version_mailanalyzer(): array
 {
    return [
       'name' => __('Mail Analyzer'),
@@ -89,11 +90,11 @@ function plugin_version_mailanalyzer()
 
 
 /**
- * Summary of plugin_mailanalyzer_check_prerequisites
- * check prerequisites before install : may print errors or add to message after redirect
+ * Check prerequisites before install.
+ *
  * @return bool
  */
-function plugin_mailanalyzer_check_prerequisites()
+function plugin_mailanalyzer_check_prerequisites(): bool
 {
    if (
       version_compare(GLPI_VERSION, PLUGIN_MAILANALYZER_MIN_GLPI, 'lt')
@@ -107,11 +108,11 @@ function plugin_mailanalyzer_check_prerequisites()
 
 
 /**
- * Summary of plugin_mailanalyzer_check_config
+ * Check plugin configuration.
+ *
  * @return bool
  */
-function plugin_mailanalyzer_check_config()
+function plugin_mailanalyzer_check_config(): bool
 {
    return true;
 }
-

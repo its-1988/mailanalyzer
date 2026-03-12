@@ -26,55 +26,98 @@ along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------
  */
 
-class PluginMailanalyzerConfig extends CommonDBTM {
+/**
+ * Configuration class for the MailAnalyzer plugin.
+ * Provides a single settings tab in the GLPI Configuration page
+ * with both configuration and statistics.
+ */
+class PluginMailanalyzerConfig extends CommonDBTM
+{
 
    /**
-    * Summary of getTypeName
-    * @param mixed $nb plural
-    * @return mixed
+    * @param int $nb Plural count
+    * @return string
     */
-   static function getTypeName($nb = 0) {
+   public static function getTypeName($nb = 0): string
+   {
       return __('Mail Analyzer setup', 'mailanalyzer');
    }
 
    /**
-    * Summary of getName
-    * @param mixed $with_comment with comment
-    * @return mixed
+    * @param bool $with_comment Include comment
+    * @return string
     */
-   function getName($with_comment = 0) {
+   public function getName($with_comment = 0): string
+   {
       return __('MailAnalyzer', 'mailanalyzer');
+   }
+
+   /**
+    * Icon displayed in the sidebar tab.
+    * @return string FontAwesome icon class
+    */
+   public static function getIcon(): string
+   {
+      return 'ti ti-mail';
    }
 
 
    /**
-    * Summary of showConfigForm
-    * @param mixed $item is the config
-    * @return boolean
+    * Display the configuration form for the plugin.
+    *
+    * @param CommonGLPI $item The config item
+    * @return bool
     */
-   static function showConfigForm($item) {
+   public static function showConfigForm(CommonGLPI $item): bool
+   {
       $config = Config::getConfigurationValues('plugin:mailanalyzer');
 
-      echo "<form name='form' action=\"".Toolbox::getItemTypeFormURL('Config')."\" method='post' data-track-changes='true'>";
-            echo "<div class='center' id='tabsbody'>";
+      if (!isset($config['use_threadindex'])) {
+         $config['use_threadindex'] = 0;
+      }
+
+      echo "<form name='form' action=\"" . Toolbox::getItemTypeFormURL('Config') . "\" method='post' data-track-changes='true'>";
+
+      echo "<div class='center'>";
       echo "<table class='tab_cadre_fixe'>";
 
-      echo "<tr><th colspan='4'>" . __('Mail Analyzer setup', 'mailanalyzer') . "</th></tr>";
+      // Header
+      echo "<tr><th colspan='2'>";
+      echo "<i class='fas fa-cogs me-1'></i> ";
+      echo __('Mail Analyzer setup', 'mailanalyzer');
+      echo "</th></tr>";
 
+      // Thread-Index option
       echo "<tr class='tab_bg_1'>";
-      echo "<td >".__('Use of Thread index', 'mailanalyzer') ."</td><td >";
-      if (!isset($config['use_threadindex'])) {
-          $config['use_threadindex'] = 0;
-      }
+      echo "<td class='col-form-label'>";
+      echo "<i class='fas fa-project-diagram me-1 text-muted'></i> ";
+      echo __('Use of Thread index', 'mailanalyzer');
+      echo "<br><small class='text-muted'>";
+      echo __('Enable Microsoft Exchange Thread-Index header support for improved conversation tracking', 'mailanalyzer');
+      echo "</small>";
+      echo "</td>";
+      echo "<td>";
       Dropdown::showYesNo("use_threadindex", $config['use_threadindex']);
       echo "</td></tr>";
-      
-      echo "<tr><td colspan='2'></td></tr>";
 
-      echo "<tr class='tab_bg_2'>";
-      echo "<td colspan='4' class='center'>";
-      echo "<input type='submit' name='update' class='submit' value=\""._sx('button', 'Save')."\">";
+      // Info row
+      echo "<tr class='tab_bg_1'>";
+      echo "<td colspan='2'>";
+      echo "<div class='alert alert-info d-flex align-items-center'>";
+      echo "<i class='fas fa-info-circle fa-lg me-2'></i>";
+      echo "<div>";
+      echo "<strong>" . __('How it works', 'mailanalyzer') . "</strong><br>";
+      echo __('This plugin analyzes email headers (Message-ID, References, Thread-Index) to automatically combine related emails into the same ticket, preventing duplicates when CC recipients use "Reply to All".', 'mailanalyzer');
+      echo "</div>";
+      echo "</div>";
       echo "</td></tr>";
+
+      // Save button
+      echo "<tr class='tab_bg_2'>";
+      echo "<td colspan='2' class='center'>";
+      echo "<input type='submit' name='update' class='btn btn-primary' value=\"" . _sx('button', 'Save') . "\">";
+      echo "</td></tr>";
+
       echo "</table></div>";
 
       echo "<input type='hidden' name='id' value='1'>";
@@ -82,24 +125,40 @@ class PluginMailanalyzerConfig extends CommonDBTM {
 
       Html::closeForm();
 
+      // Show statistics dashboard below the config form
+      echo "<br>";
+      $period = $_GET['period'] ?? '30days';
+      PluginMailanalyzerStats::showDashboard($period);
+
       return false;
    }
 
 
-   function getTabNameForItem(CommonGLPI $item, $withtemplate = 0) {
-      if ($item->getType()=='Config') {
-         return __('Mail Analyzer', 'mailanalyzer');
+   /**
+    * @param CommonGLPI $item
+    * @param int $withtemplate
+    * @return string
+    */
+   public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string
+   {
+      if ($item->getType() == 'Config') {
+         return "<span class='d-flex align-items-center'><i class='ti ti-mail me-2'></i>" . __('Mail Analyzer', 'mailanalyzer') . "</span>";
       }
       return '';
    }
 
 
-   static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0) {
-
-      if ($item->getType()=='Config') {
+   /**
+    * @param CommonGLPI $item
+    * @param int $tabnum
+    * @param int $withtemplate
+    * @return bool
+    */
+   public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0): bool
+   {
+      if ($item->getType() == 'Config') {
          self::showConfigForm($item);
       }
       return true;
    }
-
 }
