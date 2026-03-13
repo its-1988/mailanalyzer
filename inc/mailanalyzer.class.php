@@ -98,6 +98,37 @@ class PluginMailAnalyzer
          }
       }
 
+      // Check Whitelist / Blacklist
+      $from = $parm->input['_head']['from'] ?? '';
+      $fromDomain = '';
+      if (preg_match('/@([a-zA-Z0-9.-]+)/', $from, $matches)) {
+         $fromDomain = strtolower($matches[1]);
+      }
+
+      if (!empty($fromDomain)) {
+         // Blacklist: reject the email entirely
+         $blacklist = array_filter(array_map('trim', explode("\n", $config['blacklist_domains'] ?? '')));
+         foreach ($blacklist as $bDomain) {
+            $bDomain = ltrim(strtolower($bDomain), '@');
+            if ($bDomain === $fromDomain) {
+               Toolbox::logInfo("MailAnalyzer: Email rejected by Blacklist from domain $fromDomain");
+               $parm->input = false;
+               $local_mailgate->deleteMails($parm->input['_uid'], MailCollector::REFUSED_FOLDER);
+               return;
+            }
+         }
+
+         // Whitelist: let GLPI process normally, bypassing MailAnalyzer
+         $whitelist = array_filter(array_map('trim', explode("\n", $config['whitelist_domains'] ?? '')));
+         foreach ($whitelist as $wDomain) {
+            $wDomain = ltrim(strtolower($wDomain), '@');
+            if ($wDomain === $fromDomain) {
+               Toolbox::logInfo("MailAnalyzer: Email bypassed by Whitelist from domain $fromDomain");
+               return; 
+            }
+         }
+      }
+
       if ($use_threadindex) {
          try {
             $local_message = $local_mailgate->getMessage($parm->input['_uid']);
@@ -135,6 +166,28 @@ class PluginMailAnalyzer
             (int) $mailgateId,
             $messageId
          );
+
+         // Check if we have too many duplicates recently and raise an alert on MailCollector
+         $resCount = $DB->request([
+            'COUNT' => 'cpt',
+            'FROM'  => 'glpi_plugin_mailanalyzer_stats',
+            'WHERE' => [
+               'mailcollectors_id' => clone $mailgateId,
+               'action_type'       => PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
+               'date_created'      => ['>=', date('Y-m-d H:i:s', time() - 3600)]
+            ]
+         ]);
+         $count = $resCount->current()['cpt'] ?? 0;
+         if ($count > 0 && $count % 20 === 0) {
+            if (class_exists('NotificationEvent')) {
+               $mc = new MailCollector();
+               if ($mc->getFromDB($mailgateId)) {
+                  NotificationEvent::raiseEvent('mailanalyzer_duplicate_alert', $mc);
+                  Toolbox::logWarning("MailAnalyzer: Raised high volume of duplicates alert for MailCollector #{$mailgateId} ($count duplicates in last hour)");
+               }
+            }
+         }
+
          $parm->input = false;
 
          // as Ticket creation is cancelled, email is not deleted from mailbox

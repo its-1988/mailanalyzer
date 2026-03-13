@@ -1,0 +1,148 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MailAnalyzer\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-12 18:00+0000\n"
+"PO-Revision-Date: 2026-03-12 18:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Português do Brasil\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Last 7 days"
+msgstr "Últimos 7 dias"
+
+msgid "Last 30 days"
+msgstr "Últimos 30 dias"
+
+msgid "Last 90 days"
+msgstr "Últimos 90 dias"
+
+msgid "All time"
+msgstr "Todo o período"
+
+msgid "Mail Analyzer Statistics"
+msgstr "Estatísticas do Mail Analyzer"
+
+msgid "Duplicates Blocked"
+msgstr "Duplicados Bloqueados"
+
+msgid "Followups Created"
+msgstr "Acompanhamentos Criados"
+
+msgid "Tickets Linked"
+msgstr "Chamados Vinculados"
+
+msgid "New Tickets"
+msgstr "Novos Chamados"
+
+msgid "Total emails processed"
+msgstr "Total de e-mails processados"
+
+msgid "Recent Activity"
+msgstr "Atividade Recente"
+
+msgid "Date"
+msgstr "Data"
+
+msgid "Action"
+msgstr "Ação"
+
+msgid "Ticket"
+msgstr "Chamado"
+
+msgid "Mail Collector"
+msgstr "Coletor de E-mail"
+
+msgid "Message ID"
+msgstr "ID da Mensagem"
+
+msgid "Duplicate Blocked"
+msgstr "Duplicado Bloqueado"
+
+msgid "Followup Created"
+msgstr "Acompanhamento Criado"
+
+msgid "Ticket Linked"
+msgstr "Chamado Vinculado"
+
+msgid "New Ticket"
+msgstr "Novo Chamado"
+
+msgid "deleted"
+msgstr "excluído"
+
+msgid "Mail Analyzer setup"
+msgstr "Configuração do Mail Analyzer"
+
+msgid "MailAnalyzer"
+msgstr "Mail Analyzer"
+
+msgid "Use of Thread index"
+msgstr "Uso do cabeçalho Thread-Index"
+
+msgid "Enable Microsoft Exchange Thread-Index header support for improved conversation tracking"
+msgstr "Habilitar o suporte ao cabeçalho Thread-Index do Microsoft Exchange para melhorar o rastreamento das conversas"
+
+msgid "How it works"
+msgstr "Como funciona"
+
+msgid "This plugin analyzes email headers (Message-ID, References, Thread-Index) to automatically combine related emails into the same ticket, preventing duplicates when CC recipients use \"Reply to All\"."
+msgstr "Este plugin analisa os cabeçalhos de e-mail (Message-ID, References, Thread-Index) para combinar automaticamente e-mails relacionados no mesmo chamado, prevenindo duplicatas quando os destinatários em cópia usam \"Responder a Todos\"."
+
+msgid "Mail Analyzer"
+msgstr "Mail Analyzer"
+
+msgid "High volume of blocked duplicates"
+msgstr "Alto volume de duplicatas bloqueadas"
+
+msgid "Unsupported mail server type:%s."
+msgstr "Tipo de servidor de e-mail não suportado:%s."
+
+msgid "Cleanup orphan entries and old statistics"
+msgstr "Limpeza de registros órfãos e estatísticas antigas"
+
+msgid "Days to keep statistics (0 = infinite)"
+msgstr "Dias para manter estatísticas (0 = infinito)"
+
+msgid "Whitelist Domains"
+msgstr "Domínios na Whitelist"
+
+msgid "Never block emails from these domains (one per line, e.g., @important.com)"
+msgstr "Nunca bloquear e-mails destes domínios (um por linha, ex: @importante.com)"
+
+msgid "Blacklist Domains"
+msgstr "Domínios na Blacklist"
+
+msgid "Always block emails from these domains (one per line, e.g., @spam.com)"
+msgstr "Sempre bloquear e-mails destes domínios (um por linha, ex: @spam.com)"
+
+msgid "Mail Collectors Health Check"
+msgstr "Verificação de Saúde dos Coletores"
+
+msgid "Collector Name"
+msgstr "Nome do Coletor"
+
+msgid "Connection Status"
+msgstr "Status da Conexão"
+
+msgid "Last Email Processed (Analyzer)"
+msgstr "Último E-mail Processado (Analyzer)"
+
+msgid "Errors Count"
+msgstr "Contagem de Erros"
+
+msgid "No active mail collectors found."
+msgstr "Nenhum coletor de e-mail ativo encontrado."
+
+msgid "Failing"
+msgstr "Falhando"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Never"
+msgstr "Nunca"

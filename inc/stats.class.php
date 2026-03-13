@@ -159,20 +159,28 @@ class PluginMailanalyzerStats extends CommonDBTM
       $total = array_sum($summary);
       $events = self::getRecentEvents(15);
 
-      // Period selector
+      // Period selector using native GLPI Form
       echo "<div class='center mb-3'>";
-      echo "<div class='btn-group' role='group'>";
+      echo "<form method='post' action='" . Plugin::getWebDir('mailanalyzer') . "/front/stats.php'>";
+      echo "<input type='hidden' name='config_context' value='plugin:mailanalyzer'>";
+      echo "<input type='hidden' name='_glpi_tab' value='PluginMailanalyzerConfig$1'>";
       $periods = [
          '7days'  => __('Last 7 days', 'mailanalyzer'),
          '30days' => __('Last 30 days', 'mailanalyzer'),
          '90days' => __('Last 90 days', 'mailanalyzer'),
          'all'    => __('All time', 'mailanalyzer'),
       ];
-      foreach ($periods as $key => $label) {
-         $active = ($key === $period) ? 'btn-primary' : 'btn-outline-secondary';
-         echo "<a href='?period=$key' class='btn $active'>$label</a>";
-      }
-      echo "</div>";
+      echo "<table class='tab_cadre_fixe'>";
+      echo "<tr><th colspan='2'>" . __('Filter Statistics', 'mailanalyzer') . "</th></tr>";
+      echo "<tr class='tab_bg_1'>";
+      echo "<td>" . __('Period', 'mailanalyzer') . "</td>";
+      echo "<td>";
+      Dropdown::showFromArray('period', $periods, ['value' => $period]);
+      echo "&nbsp;<input type='submit' name='filter_stats' class='btn btn-primary btn-sm' value='" . _sx('button', 'Apply') . "'>";
+      echo "</td>";
+      echo "</tr>";
+      echo "</table>";
+      Html::closeForm();
       echo "</div>";
 
       // Stats cards

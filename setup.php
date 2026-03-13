@@ -44,6 +44,7 @@ function plugin_init_mailanalyzer(): void
 
    Plugin::registerClass('PluginMailAnalyzer');
    Plugin::registerClass('PluginMailanalyzerStats');
+   Plugin::registerClass('PluginMailanalyzerCrontask');
 
    $PLUGIN_HOOKS['csrf_compliant']['mailanalyzer'] = true;
 
@@ -58,6 +59,9 @@ function plugin_init_mailanalyzer(): void
    $PLUGIN_HOOKS['item_purge']['mailanalyzer'] = [
       'Ticket' => ['PluginMailAnalyzer', 'plugin_item_purge_mailanalyzer']
    ];
+
+   $PLUGIN_HOOKS['cron']['mailanalyzer'] = ['PluginMailanalyzerCrontask'];
+   $PLUGIN_HOOKS['item_action']['MailCollector']['mailanalyzer_duplicate_alert'] = __('High volume of blocked duplicates', 'mailanalyzer');
 
    if (Session::haveRightsOr("config", [READ, UPDATE])) {
       Plugin::registerClass('PluginMailanalyzerConfig', ['addtabon' => 'Config']);

@@ -100,6 +100,32 @@ class PluginMailanalyzerConfig extends CommonDBTM
       Dropdown::showYesNo("use_threadindex", $config['use_threadindex']);
       echo "</td></tr>";
 
+      // Whitelist
+      echo "<tr class='tab_bg_1'>";
+      echo "<td class='col-form-label'>";
+      echo "<i class='fas fa-check-circle me-1 text-success'></i> ";
+      echo __('Whitelist Domains', 'mailanalyzer');
+      echo "<br><small class='text-muted'>";
+      echo __('Never block emails from these domains (one per line, e.g., @important.com)', 'mailanalyzer');
+      echo "</small>";
+      echo "</td>";
+      echo "<td>";
+      echo "<textarea name='whitelist_domains' class='form-control' rows='3'>" . Html::entities_deep($config['whitelist_domains'] ?? '') . "</textarea>";
+      echo "</td></tr>";
+
+      // Blacklist
+      echo "<tr class='tab_bg_1'>";
+      echo "<td class='col-form-label'>";
+      echo "<i class='fas fa-times-circle me-1 text-danger'></i> ";
+      echo __('Blacklist Domains', 'mailanalyzer');
+      echo "<br><small class='text-muted'>";
+      echo __('Always block emails from these domains (one per line, e.g., @spam.com)', 'mailanalyzer');
+      echo "</small>";
+      echo "</td>";
+      echo "<td>";
+      echo "<textarea name='blacklist_domains' class='form-control' rows='3'>" . Html::entities_deep($config['blacklist_domains'] ?? '') . "</textarea>";
+      echo "</td></tr>";
+
       // Info row
       echo "<tr class='tab_bg_1'>";
       echo "<td colspan='2'>";
@@ -125,12 +151,81 @@ class PluginMailanalyzerConfig extends CommonDBTM
 
       Html::closeForm();
 
+      // Show Health Check
+      self::showHealthCheck();
+
       // Show statistics dashboard below the config form
       echo "<br>";
-      $period = $_GET['period'] ?? '30days';
+      $period = $_SESSION['plugin_mailanalyzer_stats_period'] ?? '30days';
       PluginMailanalyzerStats::showDashboard($period);
 
       return false;
+   }
+
+   /**
+    * Display Health Check for Mail Collectors
+    */
+   public static function showHealthCheck(): void
+   {
+      global $DB;
+
+      echo "<div class='center mt-4'>";
+      echo "<table class='tab_cadre_fixe'>";
+      echo "<tr><th colspan='4'>";
+      echo "<i class='fas fa-heartbeat me-1'></i> ";
+      echo __('Mail Collectors Health Check', 'mailanalyzer');
+      echo "</th></tr>";
+      echo "<tr class='tab_bg_2'>";
+      echo "<th>" . __('Collector Name', 'mailanalyzer') . "</th>";
+      echo "<th>" . __('Connection Status', 'mailanalyzer') . "</th>";
+      echo "<th>" . __('Last Email Processed (Analyzer)', 'mailanalyzer') . "</th>";
+      echo "<th>" . __('Errors Count', 'mailanalyzer') . "</th>";
+      echo "</tr>";
+
+      $res = $DB->request([
+         'FROM'  => 'glpi_mailcollectors'
+      ]);
+
+      if (!count($res)) {
+         echo "<tr class='tab_bg_1'><td colspan='4' class='center'>" . __('No active mail collectors found.', 'mailanalyzer') . "</td></tr>";
+      }
+
+      foreach ($res as $mc) {
+         echo "<tr class='tab_bg_1'>";
+         
+         // Name
+         echo "<td><i class='fas fa-inbox me-1'></i> " . htmlspecialchars($mc['name']) . "</td>";
+
+         // Connection Status
+         $hasErrors = (int)$mc['errors'] > 0;
+         if ($hasErrors) {
+            echo "<td><span class='badge bg-danger'><i class='fas fa-exclamation-triangle'></i> " . __('Failing', 'mailanalyzer') . "</span></td>";
+         } else {
+            echo "<td><span class='badge bg-success'><i class='fas fa-check-circle'></i> " . __('OK', 'mailanalyzer') . "</span></td>";
+         }
+
+         // Last Email Processed
+         $lastDate = __('Never', 'mailanalyzer');
+         $resStats = $DB->request([
+            'SELECT' => ['MAX' => 'date_created AS last_date'],
+            'FROM'   => 'glpi_plugin_mailanalyzer_stats',
+            'WHERE'  => ['mailcollectors_id' => $mc['id']]
+         ]);
+         if ($row = $resStats->current()) {
+            if (!empty($row['last_date'])) {
+               $lastDate = Html::convDateTime($row['last_date']);
+            }
+         }
+         echo "<td>" . $lastDate . "</td>";
+
+         // Errors Count
+         echo "<td>" . (int)$mc['errors'] . "</td>";
+         
+         echo "</tr>";
+      }
+
+      echo "</table>";
+      echo "</div>";
    }
 
 

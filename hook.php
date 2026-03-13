@@ -105,6 +105,19 @@ function plugin_mailanalyzer_install()
       $DB->doQuery($query) or throw new \RuntimeException("error creating glpi_plugin_mailanalyzer_stats " . $DB->error);
    }
 
+   // Register CronTask if it doesn't exist
+   $cron = new CronTask();
+   if (!$cron->getFromDBbyName('PluginMailanalyzerCrontask', 'MailanalyzerCleanup')) {
+      $cron->add([
+          'itemtype'  => 'PluginMailanalyzerCrontask',
+          'name'      => 'MailanalyzerCleanup',
+          'frequency' => DAY_TIMESTAMP,
+          'param'     => 180, // Default 180 days of stats history
+          'state'     => 1,   // Active
+          'mode'      => 1    // CLI by default
+      ]);
+   }
+
    return true;
 }
 
@@ -115,7 +128,6 @@ function plugin_mailanalyzer_install()
  */
 function plugin_mailanalyzer_uninstall()
 {
-
    // nothing to uninstall
    // do not delete table
 
