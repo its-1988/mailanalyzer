@@ -27,6 +27,11 @@
 | 🔗 **Ticket Linking** | When replying to a closed ticket, creates a new linked ticket |
 | 🧵 **Thread-Index Support** | Microsoft Exchange `Thread-Index` header analysis for improved conversation tracking |
 | 📊 **Statistics Dashboard** | Visual dashboard with real-time stats on processed emails, duplicates blocked, and followups created |
+| 🛡️ **Domain Filtering** | Whitelist and Blacklist support to prioritize or ignore specific sender domains |
+| ⚕️ **Health Check** | Real-time connection and failure monitoring for all active GLPI Mail Collectors |
+| 🔔 **Smart Alerts** | Triggers native GLPI notifications when excessive duplicates are blocked |
+| ⏱️ **Auto Cleanup** | Native GLPI CronTask integration for scheduled background maintenance |
+| 🌍 **i18n Ready** | Fully translatable interface structured for PO/MO files (pt_BR included) |
 | 🛠️ **CLI Cleanup** | Console command for purging orphaned records and old statistics |
 
 ---
@@ -70,8 +75,10 @@ Navigate to **Configuration > General > Mail Analyzer** tab.
 | Option | Description |
 |--------|-------------|
 | **Use Thread-Index** | Enable Microsoft Exchange `Thread-Index` header support for improved conversation grouping |
+| **Whitelist Domains** | Domains that should bypass certain blocks (e.g., `@trust.com`) |
+| **Blacklist Domains** | Domains that are completely ignored (e.g., `@spam.com`) |
 
-### Statistics Dashboard
+### Statistics & Health Check
 
 The same configuration tab includes a **real-time statistics dashboard** showing:
 
@@ -126,13 +133,17 @@ php bin/console mailanalyzer:cleanup --dry-run
 ```
 mailanalyzer/
 ├── front/
-│   └── config.form.php        # Configuration page entry point
+│   ├── config.form.php         # Configuration page entry point
+│   └── stats.php               # Native AJAX endpoint for dashboard filters
 ├── inc/
 │   ├── mailanalyzer.class.php  # Core email analysis logic
 │   ├── mailcollector.class.php # Extended mail collector with Thread-Index
 │   ├── config.class.php        # Configuration form & stats tab
 │   ├── stats.class.php         # Statistics tracking & dashboard
+│   ├── crontask.class.php      # Native GLPI Cron Task for housekeeping
 │   └── cleanupcommand.class.php # CLI cleanup command
+├── locales/
+│   └── pt_BR.po                # i18n Translation Dictionary (pt_BR)
 ├── hook.php                    # Install/uninstall hooks
 ├── setup.php                   # Plugin registration & hooks
 ├── logo.png                    # Plugin icon
