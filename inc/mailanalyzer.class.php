@@ -289,6 +289,10 @@ class PluginMailAnalyzer
       // can't find ref into DB, then this is a new ticket, insert refs and message_id into DB
       $messages_id[] = $messageId;
 
+      // PERSIST THESE ARRAYS FOR THE item_add HOOK
+      $parm->input['_mailanalyzer_messages_id'] = $messages_id;
+      $parm->input['_mailanalyzer_msg_id_main'] = $messageId;
+
       // this is a new ticket — add references and message_id to DB
       foreach ($messages_id as $ref) {
          $res = $DB->request('glpi_plugin_mailanalyzer_message_id', ['message_id' => $ref, 'mailcollectors_id' => $mailgateId]);
@@ -316,12 +320,17 @@ class PluginMailAnalyzer
          // this ticket has been created via email receiver.
          // update the ticket ID for the message_id only for newly created tickets (tickets_id == 0)
 
-         // Are 'Thread-Index' or 'References' present?
-         $messages_id = self::getMailReferences(
-            $parm->input['_head']['threadindex'] ?? '',
-            html_entity_decode($parm->input['_head']['references'] ?? '')
-         );
-         $messages_id[] = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
+         // Retrieve message IDs injected by pre_item_add_mailanalyzer hook
+         $messages_id = $parm->input['_mailanalyzer_messages_id'] ?? [];
+         
+         // Fallback if not set (for safety, though it should be if it passes pre_item_add)
+         if (empty($messages_id)) {
+            $messages_id = self::getMailReferences(
+               $parm->input['_head']['threadindex'] ?? '',
+               html_entity_decode($parm->input['_head']['references'] ?? '')
+            );
+            $messages_id[] = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
+         }
 
          $result = $DB->update(
             'glpi_plugin_mailanalyzer_message_id',
@@ -344,7 +353,7 @@ class PluginMailAnalyzer
                PluginMailanalyzerStats::ACTION_NEW_TICKET,
                (int) $parm->fields['id'],
                (int) $parm->input['_mailgate'],
-               trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''))
+               $parm->input['_mailanalyzer_msg_id_main'] ?? trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''))
             );
          } else {
             Toolbox::logError("MailAnalyzer: Failed to update tickets_id for ticket #{$parm->fields['id']}");
