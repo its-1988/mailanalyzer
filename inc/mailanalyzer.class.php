@@ -321,7 +321,7 @@ class PluginMailAnalyzer
             $parm->input['_head']['threadindex'] ?? '',
             html_entity_decode($parm->input['_head']['references'] ?? '')
          );
-         $messages_id[] = html_entity_decode($parm->input['_head']['message_id'] ?? '');
+         $messages_id[] = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
 
          $result = $DB->update(
             'glpi_plugin_mailanalyzer_message_id',
@@ -344,7 +344,7 @@ class PluginMailAnalyzer
                PluginMailanalyzerStats::ACTION_NEW_TICKET,
                (int) $parm->fields['id'],
                (int) $parm->input['_mailgate'],
-               html_entity_decode($parm->input['_head']['message_id'])
+               trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''))
             );
          } else {
             Toolbox::logError("MailAnalyzer: Failed to update tickets_id for ticket #{$parm->fields['id']}");
