@@ -144,39 +144,42 @@ class PluginMailAnalyzer
 
       // we must check if this email has not been received yet!
       // test if 'message-id' is in the DB
-      $messageId = html_entity_decode($parm->input['_head']['message_id']);
+      $messageId = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
       $uid = $parm->input['_uid'];
-      $res = $DB->request(
-         'glpi_plugin_mailanalyzer_message_id',
-         [
-            'AND' =>
-               [
-                  'tickets_id' => ['!=', 0],
-                  'message_id' => $messageId,
-                  'mailcollectors_id' => $mailgateId
-               ]
-         ]
-      );
-      if ($row = $res->current()) {
-         // email already received — prevent ticket creation
-         Toolbox::logInfo("MailAnalyzer: Duplicate email blocked (message_id: $messageId, existing ticket: #{$row['tickets_id']})");
-         PluginMailanalyzerStats::record(
-            PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
-            (int) $row['tickets_id'],
-            (int) $mailgateId,
-            $messageId
-         );
-
-         // Check if we have too many duplicates recently and raise an alert on MailCollector
-         $resCount = $DB->request([
-            'COUNT' => 'cpt',
-            'FROM'  => 'glpi_plugin_mailanalyzer_stats',
-            'WHERE' => [
-               'mailcollectors_id' => clone $mailgateId,
-               'action_type'       => PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
-               'date_created'      => ['>=', date('Y-m-d H:i:s', time() - 3600)]
+      
+      // Do not process duplicate check for empty message_ids to avoid rejecting all un-ID'd emails
+      if (!empty($messageId)) {
+         $res = $DB->request(
+            'glpi_plugin_mailanalyzer_message_id',
+            [
+               'AND' =>
+                  [
+                     'tickets_id' => ['!=', 0],
+                     'message_id' => $messageId,
+                     'mailcollectors_id' => $mailgateId
+                  ]
             ]
-         ]);
+         );
+         if ($row = $res->current()) {
+            // email already received — prevent ticket creation
+            Toolbox::logInfo("MailAnalyzer: Duplicate email blocked (message_id: $messageId, existing ticket: #{$row['tickets_id']})");
+            PluginMailanalyzerStats::record(
+               PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
+               (int) $row['tickets_id'],
+               (int) $mailgateId,
+               $messageId
+            );
+
+            // Check if we have too many duplicates recently and raise an alert on MailCollector
+            $resCount = $DB->request([
+               'COUNT' => 'cpt',
+               'FROM'  => 'glpi_plugin_mailanalyzer_stats',
+               'WHERE' => [
+                  'mailcollectors_id' => $mailgateId, // Fix: removed invalid 'clone' keyword on integer
+                  'action_type'       => PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
+                  'date_created'      => ['>=', date('Y-m-d H:i:s', time() - 3600)]
+               ]
+            ]);
          $count = $resCount->current()['cpt'] ?? 0;
          if ($count > 0 && $count % 20 === 0) {
             if (class_exists('NotificationEvent')) {
@@ -188,13 +191,14 @@ class PluginMailAnalyzer
             }
          }
 
-         $parm->input = false;
+            $parm->input = false;
 
-         // as Ticket creation is cancelled, email is not deleted from mailbox
-         // so we need to move/delete this email from mailbox folder
-         $local_mailgate->deleteMails($uid, MailCollector::REFUSED_FOLDER);
+            // as Ticket creation is cancelled, email is not deleted from mailbox
+            // so we need to move/delete this email from mailbox folder
+            $local_mailgate->deleteMails($uid, MailCollector::REFUSED_FOLDER);
 
-         return;
+            return;
+         }
       }
 
       // search for 'Thread-Index' and 'References'
