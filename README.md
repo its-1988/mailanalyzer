@@ -5,6 +5,73 @@
 </p>
 
 <p align="center">
+  <a href="#-english">English</a> • 
+  <a href="#-português">Português</a>
+</p>
+
+---
+
+<h2 id="-português">🇧🇷 Português</h2>
+
+<p align="center">
+  <strong>Análise inteligente de conversas por e-mail para GLPI 11</strong><br>
+  Combina automaticamente e-mails relacionados em um único chamado, evitando duplicatas.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square&logo=data:image/svg+xml;base64," alt="GLPI 11">
+  <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
+  <img src="https://img.shields.io/badge/Versão-4.1.0-orange?style=flat-square" alt="Versão">
+</p>
+
+### ✨ Funcionalidades
+
+| Funcionalidade | Descrição |
+|-----------|-------------|
+| 🔁 **Detecção de Duplicatas** | Bloqueia chamados duplicados quando o mesmo e-mail é recebido múltiplas vezes |
+| 💬 **Acompanhamento Automático** | Respostas a chamados existentes são adicionadas automaticamente como acompanhamentos |
+| 🔗 **Vinculação de Chamados** | Ao responder a um chamado fechado, cria um novo chamado vinculado |
+| 🧵 **Suporte a Thread-Index** | Análise do cabeçalho `Thread-Index` do Microsoft Exchange para melhor rastreamento |
+| 📊 **Painel de Estatísticas** | Painel visual com estatísticas em tempo real sobre e-mails processados |
+| 🛡️ **Filtragem de Domínio** | Suporte a Whitelist e Blacklist para priorizar ou ignorar domínios específicos |
+| ⚕️ **Health Check** | Monitoramento em tempo real de conexões e falhas de Coletores de E-mail |
+| 🔔 **Alertas Inteligentes** | Dispara notificações nativas do GLPI quando excesso de duplicatas são bloqueadas |
+| ⏱️ **Limpeza Automática** | Integração com CronTask nativa do GLPI para manutenção agendada |
+| 🌍 **Pronto para i18n** | Interface totalmente traduzível (pt_BR incluído) |
+| 🛠️ **Limpeza via CLI** | Comando de console para limpar registros órfãos e estatísticas antigas |
+
+### 📋 Requisitos
+
+| Requisito | Versão |
+|------------|---------|
+| GLPI | `>= 11.0.0` e `< 11.1` |
+| PHP | `>= 8.2` |
+| Banco de Dados | MySQL 8.0+ / MariaDB 10.5+ |
+
+### 🚀 Instalação
+
+1. Baixe a última versão
+2. Extraia a pasta `mailanalyzer` no diretório `plugins/` do seu GLPI
+3. Vá em **Configurações > Plugins** no GLPI
+4. Clique em **Instalar** e depois em **Habilitar**
+
+### ⚙️ Configuração
+
+Navegue até a aba **Configurações > Geral > Mail Analyzer**.
+
+#### Opções
+
+| Opção | Descrição |
+|--------|-------------|
+| **Usar Thread-Index** | Ativa suporte ao cabeçalho `Thread-Index` para melhor agrupamento de conversas |
+| **Whitelist de Domínios** | Domínios que devem ignorar certos bloqueios (ex: `@empresa.com.br`) |
+| **Blacklist de Domínios** | Domínios que são completamente ignorados (ex: `@spam.com`) |
+
+---
+
+<h2 id="-english">🇺🇸 English</h2>
+
+<p align="center">
   <strong>Intelligent email conversation tracking for GLPI 11</strong><br>
   Automatically combines related emails into a single ticket, preventing duplicates.
 </p>
@@ -12,7 +79,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square&logo=data:image/svg+xml;base64," alt="GLPI 11">
   <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
-  <img src="https://img.shields.io/badge/License-GPLv2%2B-green?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Version-4.1.0-orange?style=flat-square" alt="Version">
 </p>
 
@@ -91,17 +157,17 @@ Filter stats by **7 days**, **30 days**, **90 days**, or **all time**.
 
 ---
 
-## 🔧 How It Works
+## 🔧 How It Works / Como Funciona
 
 ```mermaid
 flowchart TD
-    A[📨 Email arrives] --> B{Message-ID in DB?}
-    B -->|Yes| C[🚫 Block duplicate]
+    A[📨 Email arrives / E-mail chega] --> B{Message-ID in DB?}
+    B -->|Yes| C[🚫 Block duplicate / Bloquear duplicata]
     B -->|No| D{References or Thread-Index match?}
     D -->|Yes| E{Ticket still open?}
-    E -->|Yes| F[💬 Create followup]
-    E -->|No| G[🔗 Create linked ticket]
-    D -->|No| H[🎫 Create new ticket]
+    E -->|Yes| F[💬 Create followup / Criar acompanhamento]
+    E -->|No| G[🔗 Create linked ticket / Criar chamado vinculado]
+    D -->|No| H[🎫 Create new ticket / Criar novo chamado]
 ```
 
 1. **Email arrives** via GLPI Mail Collector
@@ -119,7 +185,7 @@ flowchart TD
 # Purge orphaned message_id records (tickets that no longer exist)
 php bin/console mailanalyzer:cleanup
 
-# Also purge stats older than 90 days
+# Also purge stats older than 90 days / Também limpa estatísticas com mais de 90 dias
 php bin/console mailanalyzer:cleanup --stats-days=90
 
 # Dry run — see what would be deleted without making changes
@@ -153,17 +219,16 @@ mailanalyzer/
 
 ---
 
-## 📄 License
+## 📄 License / Licença
 
 This plugin is licensed under the **GNU General Public License v2.0 or later**.
 
-See [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html) for details.
-
 ---
 
-## 👤 Authors
+## 👤 Authors / Autores
 
 - **Olivier Moron** — Original author
+- **Kadosh** — GLPI 11 Compatibility & Enhancements
 - **Contributors** — See [GitHub contributors](https://github.com/tomolimo/mailanalyzer/graphs/contributors)
 
 ---
