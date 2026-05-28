@@ -281,7 +281,7 @@ GNU General Public License v2.0 or later (**GPL-2.0+**).
 
 - **Olivier Moron** — Original author
 - **Kadosh** — GLPI 11 compatibility
-- **v5.0.0 refactor** — services + Twig + ITIL features
+- **v5.0.0 refactor by Claude** — services + Twig + ITIL features
 
 ---
 
