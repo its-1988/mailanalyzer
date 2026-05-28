@@ -1,0 +1,109 @@
+{#
+ # MailAnalyzer plugin for GLPI — Dashboard template.
+ # GPLv2+
+ #}
+
+{# Period filter + export #}
+<div class="card mb-3">
+   <div class="card-body d-flex flex-wrap align-items-center gap-2">
+      <form method="post" action="{{ stats_url }}" class="d-flex align-items-center gap-2 mb-0">
+         <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token_value }}">
+         <label class="form-label mb-0 me-1">{{ __('Period', 'mailanalyzer') }}:</label>
+         <select name="period" class="form-select form-select-sm" style="width:auto;">
+            {% for k, label in periods %}
+               <option value="{{ k }}" {% if period == k %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+         </select>
+         <button type="submit" name="filter_stats" class="btn btn-sm btn-primary">
+            <i class="fas fa-filter me-1"></i> {{ _x('button', 'Apply') }}
+         </button>
+      </form>
+      <div class="ms-auto">
+         <a class="btn btn-sm btn-outline-secondary" href="{{ export_url }}?period={{ period }}">
+            <i class="fas fa-file-csv me-1"></i> {{ __('Export CSV', 'mailanalyzer') }}
+         </a>
+      </div>
+   </div>
+</div>
+
+{# Stat cards #}
+<div class="row g-3 mb-3">
+   {% set cards = [
+      { key: 'duplicate_blocked',  bg: 'danger',  icon: 'fa-ban',         label: __('Duplicates Blocked', 'mailanalyzer') },
+      { key: 'followup_created',   bg: 'success', icon: 'fa-comments',    label: __('Followups Created', 'mailanalyzer') },
+      { key: 'ticket_linked',      bg: 'info',    icon: 'fa-link',        label: __('Tickets Linked', 'mailanalyzer') },
+      { key: 'new_ticket',         bg: 'primary', icon: 'fa-ticket-alt',  label: __('New Tickets', 'mailanalyzer') },
+      { key: 'blacklist_rejected', bg: 'dark',    icon: 'fa-shield-alt',  label: __('Blacklist Rejected', 'mailanalyzer') }
+   ] %}
+   {% for c in cards %}
+      <div class="col-12 col-md-4 col-lg">
+         <div class="card text-white bg-{{ c.bg }} h-100">
+            <div class="card-body text-center">
+               <i class="fas {{ c.icon }} fa-2x mb-2"></i>
+               <div class="fs-1 fw-bold">{{ summary[c.key] ?? 0 }}</div>
+               <div>{{ c.label }}</div>
+            </div>
+         </div>
+      </div>
+   {% endfor %}
+</div>
+
+<div class="card mb-3">
+   <div class="card-body py-2 text-center">
+      <i class="fas fa-envelope me-1"></i>
+      <strong>{{ __('Total emails processed', 'mailanalyzer') }}:</strong> {{ total }}
+   </div>
+</div>
+
+{# Recent activity #}
+{% if events|length > 0 %}
+   <div class="card">
+      <div class="card-header">
+         <i class="fas fa-history me-1"></i> {{ __('Recent Activity', 'mailanalyzer') }}
+      </div>
+      <div class="table-responsive">
+         <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+               <tr>
+                  <th>{{ __('Date', 'mailanalyzer') }}</th>
+                  <th>{{ __('Action', 'mailanalyzer') }}</th>
+                  <th>{{ __('Ticket', 'mailanalyzer') }}</th>
+                  <th>{{ __('From', 'mailanalyzer') }}</th>
+                  <th>{{ __('Subject', 'mailanalyzer') }}</th>
+                  <th>{{ __('Reason', 'mailanalyzer') }}</th>
+                  <th>{{ __('Message ID', 'mailanalyzer') }}</th>
+               </tr>
+            </thead>
+            <tbody>
+               {% for e in events %}
+                  <tr>
+                     <td><small>{{ e.date_created|raw }}</small></td>
+                     <td>
+                        <span class="badge {{ e.action_label.css }}">
+                           <i class="fas {{ e.action_label.icon }}"></i>
+                           {{ e.action_label.text }}
+                        </span>
+                     </td>
+                     <td>
+                        {% if e.ticket_link is not null %}
+                           {% if e.ticket_link.exists %}
+                              <a href="{{ e.ticket_link.href }}"><i class="fas fa-hashtag"></i> {{ e.ticket_link.label }}</a>
+                           {% else %}
+                              <i class="fas fa-hashtag"></i> {{ e.ticket_link.label }}
+                              <small class="text-muted">({{ __('deleted', 'mailanalyzer') }})</small>
+                           {% endif %}
+                        {% else %}
+                           <span class="text-muted">—</span>
+                        {% endif %}
+                     </td>
+                     <td><small>{{ e.from_email }}</small></td>
+                     <td><small>{{ e.subject|length > 60 ? e.subject|slice(0, 60) ~ '…' : e.subject }}</small></td>
+                     <td><small class="text-muted">{{ e.decision_reason }}</small></td>
+                     <td><small title="{{ e.message_id }}">{{ e.message_id_short }}</small></td>
+                  </tr>
+               {% endfor %}
+            </tbody>
+         </table>
+      </div>
+   </div>
+{% endif %}

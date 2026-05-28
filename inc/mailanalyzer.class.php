@@ -2,419 +2,412 @@
 /*
 -------------------------------------------------------------------------
 MailAnalyzer plugin for GLPI
-Copyright (C) 2011-2025 by Raynet SAS a company of A.Raymond Network.
-
-https://www.araymond.com/
--------------------------------------------------------------------------
-
-LICENSE
-
-This file is part of MailAnalyzer plugin for GLPI.
-
-This file is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This plugin is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this plugin. If not, see <http://www.gnu.org/licenses/>.
+Copyright (C) 2011-2026 by Raynet SAS a company of A.Raymond Network.
+GPLv2+
 --------------------------------------------------------------------------
  */
 
 /**
- * Main class for the MailAnalyzer plugin.
- * Handles email conversation tracking by analyzing Message-ID, References,
- * and Thread-Index headers to combine related emails into a single ticket.
+ * Thin orchestration layer that wires GLPI hooks into the analyzer services.
+ *
+ * Responsibilities are split across services:
+ *   - PluginMailanalyzerDomainFilter            : whitelist / blacklist / VIP
+ *   - PluginMailanalyzerThreadResolver          : Message-ID / Thread-Index / References
+ *   - PluginMailanalyzerClassifier              : Smart Incident/Request + auto-priority
+ *   - PluginMailanalyzerAuditLog                : append-only event log
+ *   - PluginMailanalyzerNotificationDispatcher  : duplicate-storm alerts
+ *   - PluginMailanalyzerMailCollector           : IMAP/POP access (Thread-Index, deleteMails)
  */
 class PluginMailAnalyzer
 {
-   /**
-    * Static cache to preserve email headers across GLPI hook sanitization boundary
-    */
-   public static $mailanalyzer_messages_ids = [];
-   public static $mailanalyzer_msg_id_main = '';
+    /** State carried from pre_item_add → item_add (hooks fire sequentially per ticket). */
+    public static array  $pendingReferences  = [];
+    public static string $pendingMessageId   = '';
+    public static string $pendingSubjectHash = '';
+    /** When set, item_add will NOT log a NEW_TICKET event (already logged a different action). */
+    public static string $pendingActionType  = '';
 
-   /**
-    * Open a mail collector connection for reading email headers.
-    *
-    * @param int $mailcollectors_id ID of the mail collector in GLPI DB
-    * @return PluginMailanalyzerMailCollector
-    */
-   public static function openMailgate(int $mailcollectors_id): PluginMailanalyzerMailCollector
-   {
-      $mailgate = new PluginMailanalyzerMailCollector();
-      $mailgate->getFromDB($mailcollectors_id);
-      $mailgate->uid = -1;
-      $mailgate->connect();
+    /**
+     * Open a dedicated MailCollector connection for inspecting raw headers
+     * (Thread-Index lives in the IMAP message, not in $parm->input).
+     *
+     * @throws Throwable on connection failure
+     */
+    public static function openMailgate(int $mailcollectorsId): PluginMailanalyzerMailCollector
+    {
+        $mg = new PluginMailanalyzerMailCollector();
+        $mg->getFromDB($mailcollectorsId);
+        $mg->uid = -1;
+        $mg->connect();
+        return $mg;
+    }
 
-      return $mailgate;
-   }
+    /**
+     * pre_item_add hook on Ticket.
+     *
+     * Decision tree:
+     *   - non-mail ticket          → no-op
+     *   - sender on blacklist      → refuse, move to REFUSED_FOLDER
+     *   - exact Message-ID dup     → block + audit + maybe alert
+     *   - subject-hash dup (opt.)  → block as duplicate
+     *   - references match ticket  → followup (open) or linked-ticket (closed)
+     *   - otherwise                → new ticket; persist refs for future emails
+     *
+     * Smart classification is applied to the surviving ticket *input* so it
+     * propagates into GLPI's business rules.
+     */
+    public static function plugin_pre_item_add_mailanalyzer(Ticket $parm): void
+    {
+        global $mailgate;
 
+        // Reset any leftover state from a previous invocation that didn't reach item_add
+        self::$pendingReferences  = [];
+        self::$pendingMessageId   = '';
+        self::$pendingSubjectHash = '';
+        self::$pendingActionType  = '';
 
-   /**
-    * Hook called before a Ticket is added.
-    * Analyzes incoming emails to detect duplicates and conversation threads.
-    * - If the email was already received, prevents ticket creation.
-    * - If the email belongs to an existing conversation, creates a followup instead.
-    * - If the referenced ticket is closed, creates a new linked ticket.
-    *
-    * @param Ticket $parm The ticket being created
-    * @return void
-    */
-   public static function plugin_pre_item_add_mailanalyzer(Ticket $parm): void
-   {
-      global $DB, $mailgate;
+        $mailgateId = (int) ($parm->input['_mailgate'] ?? 0);
+        if ($mailgateId <= 0) {
+            return;
+        }
 
-      $mailgateId = $parm->input['_mailgate'] ?? false;
-      if (!$mailgateId) {
-         return;
-      }
+        $config         = Config::getConfigurationValues('plugin:mailanalyzer');
+        $useThreadindex = (int) ($config['use_threadindex'] ?? 0) === 1;
 
-      // this ticket has been created via email receiver.
-      // Analyze emails to establish conversation
-
-      // search for 'Thread-Index'?
-      $config = Config::getConfigurationValues('plugin:mailanalyzer');
-      $use_threadindex = isset($config['use_threadindex']) && $config['use_threadindex'];
-
-      if (isset($mailgate)) {
-         // mailgate has been opened by web page call, then use it
-         $local_mailgate = $mailgate;
-         // if use of threadindex is true then must open a new mailgate
-         // to be able to get the threadindex of the email
-         if ($use_threadindex) {
-            $local_mailgate = self::openMailgate($mailgateId);
-         }
-      } else {
-         // mailgate is not open. Called by cron
-         // then locally create a mailgate
-         try {
-            $local_mailgate = self::openMailgate($mailgateId);
-         } catch (\Throwable $e) {
-            // can't connect to the mail server, then cancel ticket creation
-            Toolbox::logError("MailAnalyzer: Failed to open mailgate #$mailgateId - " . $e->getMessage());
+        // Resolve a usable mail connection
+        try {
+            $localMailgate = ($mailgate instanceof PluginMailanalyzerMailCollector && !$useThreadindex)
+                ? $mailgate
+                : self::openMailgate($mailgateId);
+        } catch (\Throwable $e) {
+            Toolbox::logError("MailAnalyzer: openMailgate #$mailgateId failed - " . $e->getMessage());
             $parm->input = false;
             return;
-         }
-      }
+        }
 
-      // Check Whitelist / Blacklist
-      $from = $parm->input['_head']['from'] ?? '';
-      $fromDomain = '';
-      if (preg_match('/@([a-zA-Z0-9.-]+)/', $from, $matches)) {
-         $fromDomain = strtolower($matches[1]);
-      }
+        $uid           = (string) ($parm->input['_uid'] ?? '');
+        $head          = $parm->input['_head'] ?? [];
+        $from          = (string) ($head['from']       ?? '');
+        $messageId     = trim(html_entity_decode((string) ($head['message_id'] ?? '')));
+        $referencesRaw = html_entity_decode((string) ($head['references'] ?? ''));
+        $subjectRaw    = trim((string) ($parm->input['name'] ?? $head['subject'] ?? ''));
+        $subjectHash   = PluginMailanalyzerThreadResolver::hashSubject($subjectRaw);
+        $bodyRaw       = (string) ($parm->input['content'] ?? '');
 
-      if (!empty($fromDomain)) {
-         // Blacklist: reject the email entirely
-         $blacklist = array_filter(array_map('trim', explode("\n", $config['blacklist_domains'] ?? '')));
-         foreach ($blacklist as $bDomain) {
-            $bDomain = ltrim(strtolower($bDomain), '@');
-            if ($bDomain === $fromDomain) {
-               Toolbox::logInfo("MailAnalyzer: Email rejected by Blacklist from domain $fromDomain");
-               $parm->input = false;
-               $local_mailgate->deleteMails($parm->input['_uid'], MailCollector::REFUSED_FOLDER);
-               return;
+        // Domain filter (blacklist / whitelist / VIP)
+        $domainFilter = new PluginMailanalyzerDomainFilter($config);
+        $verdict      = $domainFilter->classify($from);
+
+        if ($verdict === PluginMailanalyzerDomainFilter::RESULT_BLACKLIST) {
+            Toolbox::logInfo("MailAnalyzer: blacklist hit for $from — refusing email UID=$uid");
+            PluginMailanalyzerAuditLog::append(
+                PluginMailanalyzerStats::ACTION_BLACKLIST_REJECTED,
+                0,
+                $mailgateId,
+                $messageId,
+                $from,
+                $subjectRaw,
+                $subjectHash,
+                'sender domain blacklisted'
+            );
+            $parm->input = false;
+            self::tryDeleteMail($localMailgate, $uid, MailCollector::REFUSED_FOLDER);
+            return;
+        }
+
+        // Optional: enrich head with Thread-Index from the raw IMAP message
+        if ($useThreadindex && $uid !== '') {
+            try {
+                $msg = $localMailgate->getMessage($uid);
+                $threadIndex = $localMailgate->getThreadIndex($msg);
+                if ($threadIndex !== null) {
+                    $parm->input['_head']['threadindex'] = $threadIndex;
+                    $head['threadindex'] = $threadIndex;
+                }
+            } catch (\Throwable $e) {
+                Toolbox::logWarning("MailAnalyzer: Thread-Index lookup failed UID=$uid - " . $e->getMessage());
             }
-         }
+        }
 
-         // Whitelist: let GLPI process normally, bypassing MailAnalyzer
-         $whitelist = array_filter(array_map('trim', explode("\n", $config['whitelist_domains'] ?? '')));
-         foreach ($whitelist as $wDomain) {
-            $wDomain = ltrim(strtolower($wDomain), '@');
-            if ($wDomain === $fromDomain) {
-               Toolbox::logInfo("MailAnalyzer: Email bypassed by Whitelist from domain $fromDomain");
-               return; 
+        // === SPF / DKIM / DMARC validation (RFC 8601 Authentication-Results) ===
+        $authValidator = new PluginMailanalyzerAuthValidator($config);
+        if ($authValidator->isEnabled() && $verdict !== PluginMailanalyzerDomainFilter::RESULT_VIP) {
+            $authHeader = PluginMailanalyzerAuthValidator::readAuthResults($localMailgate, $uid);
+            if ($authHeader !== '') {
+                $authVerdict = $authValidator->parse($authHeader);
+                $reject = $authValidator->shouldReject($authVerdict);
+                if ($reject !== null) {
+                    Toolbox::logInfo("MailAnalyzer: rejecting email — $reject (from=$from, uid=$uid)");
+                    PluginMailanalyzerAuditLog::append(
+                        PluginMailanalyzerStats::ACTION_AUTH_REJECTED,
+                        0,
+                        $mailgateId,
+                        $messageId,
+                        $from,
+                        $subjectRaw,
+                        $subjectHash,
+                        $reject . sprintf(
+                            ' (spf=%s, dkim=%s, dmarc=%s)',
+                            $authVerdict['spf'],
+                            $authVerdict['dkim'],
+                            $authVerdict['dmarc']
+                        )
+                    );
+                    $parm->input = false;
+                    self::tryDeleteMail($localMailgate, $uid, MailCollector::REFUSED_FOLDER);
+                    return;
+                }
             }
-         }
-      }
+        }
 
-      if ($use_threadindex) {
-         try {
-            $local_message = $local_mailgate->getMessage($parm->input['_uid']);
-            $threadindex = $local_mailgate->getThreadIndex($local_message);
-            if ($threadindex) {
-               // add threadindex to the '_head' of the input
-               $parm->input['_head']['threadindex'] = $threadindex;
-            }
-         } catch (\Throwable $e) {
-            Toolbox::logWarning("MailAnalyzer: Failed to get Thread-Index for UID {$parm->input['_uid']} - " . $e->getMessage());
-         }
-      }
+        // === Duplicate detection ===
+        // 1) Exact Message-ID match
+        $dupTicketId = PluginMailanalyzerThreadResolver::findDuplicateByMessageId($messageId, $mailgateId);
 
-      // we must check if this email has not been received yet!
-      // test if 'message-id' is in the DB
-      $messageId = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
-      $uid = $parm->input['_uid'];
-      
-      // Do not process duplicate check for empty message_ids to avoid rejecting all un-ID'd emails
-      if (!empty($messageId)) {
-         $res = $DB->request(
-            'glpi_plugin_mailanalyzer_message_id',
-            [
-               'AND' =>
-                  [
-                     'tickets_id' => ['!=', 0],
-                     'message_id' => $messageId,
-                     'mailcollectors_id' => $mailgateId
-                  ]
-            ]
-         );
-         if ($row = $res->current()) {
-            // email already received — prevent ticket creation
-            Toolbox::logInfo("MailAnalyzer: Duplicate email blocked (message_id: $messageId, existing ticket: #{$row['tickets_id']})");
-            PluginMailanalyzerStats::record(
-               PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
-               (int) $row['tickets_id'],
-               (int) $mailgateId,
-               $messageId
+        // 2) Optional fallback: normalized-subject hash inside a recent window
+        if (
+            $dupTicketId === null
+            && (int) ($config['enable_subject_hash_dedup'] ?? 0) === 1
+            && $verdict !== PluginMailanalyzerDomainFilter::RESULT_WHITELIST
+            && $verdict !== PluginMailanalyzerDomainFilter::RESULT_VIP
+        ) {
+            $windowMin = max(1, (int) ($config['subject_hash_window_minutes'] ?? 5));
+            $dupTicketId = PluginMailanalyzerThreadResolver::findDuplicateBySubjectHash(
+                $subjectHash,
+                $mailgateId,
+                $windowMin * 60
+            );
+        }
+
+        if ($dupTicketId !== null) {
+            Toolbox::logInfo("MailAnalyzer: duplicate blocked (existing ticket #$dupTicketId)");
+            PluginMailanalyzerAuditLog::append(
+                PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
+                $dupTicketId,
+                $mailgateId,
+                $messageId,
+                $from,
+                $subjectRaw,
+                $subjectHash,
+                $messageId !== ''
+                    ? 'message-id match'
+                    : 'subject-hash match (window)'
             );
 
-            // Check if we have too many duplicates recently and raise an alert on MailCollector
-            $resCount = $DB->request([
-               'COUNT' => 'cpt',
-               'FROM'  => 'glpi_plugin_mailanalyzer_stats',
-               'WHERE' => [
-                  'mailcollectors_id' => $mailgateId, // Fix: removed invalid 'clone' keyword on integer
-                  'action_type'       => PluginMailanalyzerStats::ACTION_DUPLICATE_BLOCKED,
-                  'date_created'      => ['>=', date('Y-m-d H:i:s', time() - 3600)]
-               ]
-            ]);
-         $count = $resCount->current()['cpt'] ?? 0;
-         if ($count > 0 && $count % 20 === 0) {
-            if (class_exists('NotificationEvent')) {
-               $mc = new MailCollector();
-               if ($mc->getFromDB($mailgateId)) {
-                  NotificationEvent::raiseEvent('mailanalyzer_duplicate_alert', $mc);
-                  Toolbox::logWarning("MailAnalyzer: Raised high volume of duplicates alert for MailCollector #{$mailgateId} ($count duplicates in last hour)");
-               }
-            }
-         }
+            (new PluginMailanalyzerNotificationDispatcher($config))
+                ->notifyDuplicateBlocked($mailgateId);
 
             $parm->input = false;
-
-            // as Ticket creation is cancelled, email is not deleted from mailbox
-            // so we need to move/delete this email from mailbox folder
-            $local_mailgate->deleteMails($uid, MailCollector::REFUSED_FOLDER);
-
+            self::tryDeleteMail($localMailgate, $uid, MailCollector::REFUSED_FOLDER);
             return;
-         }
-      }
+        }
 
-      // search for 'Thread-Index' and 'References'
-      $messages_id = self::getMailReferences(
-         $parm->input['_head']['threadindex'] ?? '',
-         html_entity_decode($parm->input['_head']['references'] ?? '')
-      );
+        // === Conversation matching ===
+        $references = PluginMailanalyzerThreadResolver::getReferences(
+            (string) ($head['threadindex'] ?? ''),
+            $referencesRaw
+        );
+        $related = PluginMailanalyzerThreadResolver::findRelatedTicket($references, $mailgateId);
 
-      if (count($messages_id) > 0) {
-         $res = $DB->request(
-            'glpi_plugin_mailanalyzer_message_id',
-            [
-               'AND' =>
-                  [
-                     'tickets_id' => ['!=', 0],
-                     'message_id' => $messages_id,
-                     'mailcollectors_id' => $mailgateId
-                  ],
-               'ORDER' => 'tickets_id DESC'
-            ]
-         );
-         if ($row = $res->current()) {
-            // TicketFollowup creation only if ticket status is not closed
-            $locTicket = new Ticket();
-            $locTicket->getFromDB((int) $row['tickets_id']);
-            if ($locTicket->fields['status'] != CommonITILObject::CLOSED) {
-               $ticketfollowup = new ITILFollowup();
-               $input = $parm->input;
-               $input['items_id'] = $row['tickets_id'];
-               $input['users_id'] = $parm->input['_users_id_requester'];
-               $input['add_reopen'] = 1;
-               $input['itemtype'] = 'Ticket';
+        if ($related !== null) {
+            $ticket = new Ticket();
+            $ticket->getFromDB($related['tickets_id']);
+            $isClosed = (int) $ticket->fields['status'] === CommonITILObject::CLOSED;
 
-               unset($input['urgency']);
-               unset($input['entities_id']);
-               unset($input['_ruleid']);
+            if (!$isClosed) {
+                // Add as ITILFollowup on the existing open ticket
+                $followup = new ITILFollowup();
+                $input               = $parm->input;
+                $input['items_id']   = $related['tickets_id'];
+                $input['itemtype']   = 'Ticket';
+                $input['users_id']   = $parm->input['_users_id_requester'] ?? 0;
+                $input['add_reopen'] = 1;
+                unset($input['urgency'], $input['entities_id'], $input['_ruleid']);
 
-               $followup_id = $ticketfollowup->add($input);
+                $followupId = $followup->add($input);
+                if ($followupId) {
+                    PluginMailanalyzerAuditLog::append(
+                        PluginMailanalyzerStats::ACTION_FOLLOWUP_CREATED,
+                        $related['tickets_id'],
+                        $mailgateId,
+                        $messageId,
+                        $from,
+                        $subjectRaw,
+                        $subjectHash,
+                        'reference match → followup'
+                    );
+                } else {
+                    Toolbox::logError("MailAnalyzer: ITILFollowup::add failed on ticket #{$related['tickets_id']}");
+                }
 
-               if ($followup_id) {
-                  Toolbox::logInfo("MailAnalyzer: Followup #{$followup_id} created on ticket #{$row['tickets_id']} instead of new ticket");
-                  PluginMailanalyzerStats::record(
-                     PluginMailanalyzerStats::ACTION_FOLLOWUP_CREATED,
-                     (int) $row['tickets_id'],
-                     (int) $mailgateId,
-                     $messageId
-                  );
-               } else {
-                  Toolbox::logError("MailAnalyzer: Failed to create followup on ticket #{$row['tickets_id']}");
-               }
+                // Persist the new message-id so subsequent replies in this thread also match
+                global $DB;
+                $DB->insert(PluginMailanalyzerInstaller::TABLE_MESSAGE_ID, [
+                    'message_id'        => $messageId,
+                    'tickets_id'        => $related['tickets_id'],
+                    'mailcollectors_id' => $mailgateId,
+                    'subject_hash'      => $subjectHash,
+                ]);
 
-               // add message id to DB in case of another email will use it
-               $result = $DB->insert(
-                  'glpi_plugin_mailanalyzer_message_id',
-                  [
-                     'message_id' => $messageId,
-                     'tickets_id' => $input['items_id'],
-                     'mailcollectors_id' => $mailgateId
-                  ]
-               );
-               if (!$result) {
-                  Toolbox::logError("MailAnalyzer: Failed to insert message_id record for followup");
-               }
-
-               // prevent Ticket creation
-               $parm->input = false;
-
-               // as Ticket creation is cancelled, email is not deleted from mailbox
-               // so we need to move/delete this email from mailbox folder
-               $local_mailgate->deleteMails($uid, MailCollector::ACCEPTED_FOLDER);
-
-               return;
-
-            } else {
-               // ticket creation, but linked to the closed one...
-               Toolbox::logInfo("MailAnalyzer: Referenced ticket #{$row['tickets_id']} is closed — creating new linked ticket");
-               PluginMailanalyzerStats::record(
-                  PluginMailanalyzerStats::ACTION_TICKET_LINKED,
-                  (int) $row['tickets_id'],
-                  (int) $mailgateId,
-                  $messageId
-               );
-               $parm->input['_link'] = ['link' => '1', 'tickets_id_1' => '0', 'tickets_id_2' => $row['tickets_id']];
+                $parm->input = false;
+                self::tryDeleteMail($localMailgate, $uid, MailCollector::ACCEPTED_FOLDER);
+                return;
             }
-         }
-      }
 
-      // can't find ref into DB, then this is a new ticket, insert refs and message_id into DB
-      $messages_id[] = $messageId;
+            // Existing ticket is closed → create a new ticket linked to it
+            PluginMailanalyzerAuditLog::append(
+                PluginMailanalyzerStats::ACTION_TICKET_LINKED,
+                $related['tickets_id'],
+                $mailgateId,
+                $messageId,
+                $from,
+                $subjectRaw,
+                $subjectHash,
+                'reference match → linked (closed ticket)'
+            );
+            $parm->input['_link'] = [
+                'link'         => Ticket_Ticket::LINK_TO,
+                'tickets_id_1' => 0,
+                'tickets_id_2' => $related['tickets_id'],
+            ];
+            // Mark this email so item_add does NOT additionally log a NEW_TICKET
+            self::$pendingActionType = PluginMailanalyzerStats::ACTION_TICKET_LINKED;
+        }
 
-      // PERSIST THESE ARRAYS STATICALLY FOR THE item_add HOOK
-      self::$mailanalyzer_messages_ids = $messages_id;
-      self::$mailanalyzer_msg_id_main = $messageId;
+        // === Smart classification + VIP escalation ===
+        self::applyVipBoost($parm, $verdict, $config);
+        self::applyClassification($parm, $config, $subjectRaw, $bodyRaw);
 
-      // this is a new ticket — add references and message_id to DB
-      foreach ($messages_id as $ref) {
-         $res = $DB->request('glpi_plugin_mailanalyzer_message_id', ['message_id' => $ref, 'mailcollectors_id' => $mailgateId]);
-         if (count($res) <= 0) {
-            $result = $DB->insert('glpi_plugin_mailanalyzer_message_id', ['message_id' => $ref, 'mailcollectors_id' => $mailgateId]);
-            if (!$result) {
-               Toolbox::logError("MailAnalyzer: Failed to insert message_id reference: $ref");
+        // Persist refs for future emails. tickets_id is filled in item_add.
+        PluginMailanalyzerThreadResolver::persistReferences(
+            $references,
+            $messageId,
+            $mailgateId,
+            $subjectHash
+        );
+
+        // Carry to item_add hook
+        self::$pendingReferences  = array_merge($references, $messageId !== '' ? [$messageId] : []);
+        self::$pendingMessageId   = $messageId;
+        self::$pendingSubjectHash = $subjectHash;
+    }
+
+    /**
+     * item_add hook on Ticket — finalise: attach the new tickets_id to the
+     * placeholder rows we inserted in pre_item_add.
+     */
+    public static function plugin_item_add_mailanalyzer(Ticket $parm): void
+    {
+        if (!isset($parm->input['_mailgate'])) {
+            return;
+        }
+        $mailgateId = (int) $parm->input['_mailgate'];
+        $head       = $parm->input['_head'] ?? [];
+
+        $references = self::$pendingReferences;
+        $messageId  = self::$pendingMessageId;
+        if (empty($references)) {
+            $references = PluginMailanalyzerThreadResolver::getReferences(
+                (string) ($head['threadindex'] ?? ''),
+                html_entity_decode((string) ($head['references'] ?? ''))
+            );
+            $messageId = trim(html_entity_decode((string) ($head['message_id'] ?? '')));
+            if ($messageId !== '') {
+                $references[] = $messageId;
             }
-         }
-      }
-   }
+        }
 
+        $updated = PluginMailanalyzerThreadResolver::attachTicketToReferences(
+            $references,
+            (int) $parm->fields['id'],
+            $mailgateId
+        );
 
-   /**
-    * Hook called after a Ticket is added.
-    * Updates the tickets_id in the message_id table for newly created tickets.
-    *
-    * @param Ticket $parm The ticket that was created
-    * @return void
-    */
-   public static function plugin_item_add_mailanalyzer(Ticket $parm): void
-   {
-      global $DB;
-      if (isset($parm->input['_mailgate'])) {
-         // this ticket has been created via email receiver.
-         // update the ticket ID for the message_id only for newly created tickets (tickets_id == 0)
-
-         // Retrieve message IDs injected statically by pre_item_add_mailanalyzer hook
-         $messages_id = self::$mailanalyzer_messages_ids;
-         
-         // Fallback if not set (for safety, though it should be if it passes pre_item_add)
-         if (empty($messages_id)) {
-            $messages_id = self::getMailReferences(
-               $parm->input['_head']['threadindex'] ?? '',
-               html_entity_decode($parm->input['_head']['references'] ?? '')
+        if ($updated && self::$pendingActionType !== PluginMailanalyzerStats::ACTION_TICKET_LINKED) {
+            PluginMailanalyzerAuditLog::append(
+                PluginMailanalyzerStats::ACTION_NEW_TICKET,
+                (int) $parm->fields['id'],
+                $mailgateId,
+                $messageId,
+                (string) ($head['from'] ?? ''),
+                (string) ($parm->fields['name'] ?? ''),
+                self::$pendingSubjectHash,
+                'no prior reference → new ticket'
             );
-            $messages_id[] = trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''));
-         }
+        }
 
-         $result = $DB->update(
-            'glpi_plugin_mailanalyzer_message_id',
-            [
-               'tickets_id' => $parm->fields['id']
-            ],
-            [
-               'WHERE' =>
-                  [
-                     'AND' =>
-                        [
-                           'tickets_id' => 0,
-                           'message_id' => $messages_id
-                        ]
-                  ]
-            ]
-         );
-         if ($result) {
-            PluginMailanalyzerStats::record(
-               PluginMailanalyzerStats::ACTION_NEW_TICKET,
-               (int) $parm->fields['id'],
-               (int) $parm->input['_mailgate'],
-               !empty(self::$mailanalyzer_msg_id_main) ? self::$mailanalyzer_msg_id_main : trim(html_entity_decode($parm->input['_head']['message_id'] ?? ''))
-            );
-            
-            // clear static variable
-            self::$mailanalyzer_messages_ids = [];
-            self::$mailanalyzer_msg_id_main = '';
-         } else {
-            Toolbox::logError("MailAnalyzer: Failed to update tickets_id for ticket #{$parm->fields['id']}");
-         }
-      }
-   }
+        self::$pendingReferences  = [];
+        self::$pendingMessageId   = '';
+        self::$pendingSubjectHash = '';
+        self::$pendingActionType  = '';
+    }
 
+    /**
+     * item_purge hook on Ticket — clean up message_id and attachment-hash tables.
+     */
+    public static function plugin_item_purge_mailanalyzer(Ticket $item): void
+    {
+        global $DB;
+        $DB->delete(
+            PluginMailanalyzerInstaller::TABLE_MESSAGE_ID,
+            ['tickets_id' => $item->getID()]
+        );
+        PluginMailanalyzerAttachmentDedup::plugin_item_purge_ticket($item);
+    }
 
-   /**
-    * Extract email references from Thread-Index and References headers.
-    *
-    * @param string $threadindex Thread-Index header value (hex-encoded)
-    * @param string $references  References header value (space-separated message IDs)
-    * @return array<string> List of message IDs found in the headers
-    */
-   private static function getMailReferences(string $threadindex, string $references): array
-   {
-      $messages_id = [];
+    /**
+     * Apply VIP escalation to ticket input (max urgency + optional flag).
+     */
+    private static function applyVipBoost(Ticket $parm, string $verdict, array $config): void
+    {
+        if ($verdict !== PluginMailanalyzerDomainFilter::RESULT_VIP) {
+            return;
+        }
+        $current = (int) ($parm->input['urgency'] ?? 3);
+        if ($current < 5) {
+            $parm->input['urgency'] = 5;
+        }
+        Toolbox::logInfo("MailAnalyzer: VIP escalation applied to ticket-in-progress");
+    }
 
-      if (!empty($threadindex)) {
-         $messages_id[] = $threadindex;
-      }
+    /**
+     * Apply smart ITIL classification (Incident / Service Request) and
+     * urgency boost from configurable keyword dictionaries.
+     */
+    private static function applyClassification(
+        Ticket $parm,
+        array $config,
+        string $subject,
+        string $body
+    ): void {
+        $classifier = new PluginMailanalyzerClassifier($config);
+        if (!$classifier->isEnabled()) {
+            return;
+        }
+        $decision = $classifier->decide($subject, $body);
+        if ($decision['type'] !== null && !isset($parm->input['type'])) {
+            $parm->input['type'] = $decision['type'];
+        }
+        if ($decision['urgency'] !== null) {
+            $cur = (int) ($parm->input['urgency'] ?? 3);
+            if ($cur < $decision['urgency']) {
+                $parm->input['urgency'] = $decision['urgency'];
+            }
+        }
+    }
 
-      // search for 'References'
-      if (!empty($references)) {
-         // we may have a forwarded email that looks like reply-to
-         if (preg_match_all('/<.*?>/', $references, $matches)) {
-            $messages_id = array_merge($messages_id, $matches[0]);
-         }
-      }
-
-      // clean $messages_id array — remove empty or whitespace-only entries
-      return array_filter($messages_id, function (string $val): bool {
-         return trim($val, '< >') !== '';
-      });
-   }
-
-
-   /**
-    * Hook called when a Ticket is purged.
-    * Cleans up the corresponding message_id records from the plugin table.
-    *
-    * @param Ticket $item The ticket being purged
-    * @return void
-    */
-   public static function plugin_item_purge_mailanalyzer(Ticket $item): void
-   {
-      global $DB;
-      // the ticket is purged, then we are going to purge the matching rows
-      $result = $DB->delete('glpi_plugin_mailanalyzer_message_id', ['tickets_id' => $item->getID()]);
-      if (!$result) {
-         Toolbox::logError("MailAnalyzer: Failed to purge message_id records for ticket #{$item->getID()}");
-      }
-   }
+    /**
+     * Best-effort move of a processed/refused email out of the inbox.
+     */
+    private static function tryDeleteMail(PluginMailanalyzerMailCollector $mg, string $uid, string $folder): void
+    {
+        if ($uid === '') {
+            return;
+        }
+        try {
+            $mg->deleteMails($uid, $folder);
+        } catch (\Throwable $e) {
+            Toolbox::logWarning("MailAnalyzer: deleteMails($uid, $folder) failed - " . $e->getMessage());
+        }
+    }
 }

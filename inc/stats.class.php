@@ -1,329 +1,360 @@
 <?php
 /*
 -------------------------------------------------------------------------
-MailAnalyzer plugin for GLPI
-Copyright (C) 2011-2025 by Raynet SAS a company of A.Raymond Network.
-
-https://www.araymond.com/
--------------------------------------------------------------------------
-
-LICENSE
-
-This file is part of MailAnalyzer plugin for GLPI.
-
-This file is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This plugin is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this plugin. If not, see <http://www.gnu.org/licenses/>.
+MailAnalyzer plugin for GLPI — Statistics dashboard & maintenance.
+Copyright (C) 2011-2026 by Raynet SAS a company of A.Raymond Network.
+GPLv2+
 --------------------------------------------------------------------------
  */
 
+use Glpi\Application\View\TemplateRenderer;
+
 /**
- * Statistics tracking and dashboard display for the MailAnalyzer plugin.
- * Records email processing events and provides a visual summary.
+ * Statistics aggregation + dashboard rendering.
+ * Persistence is handled by PluginMailanalyzerAuditLog (same table).
  */
 class PluginMailanalyzerStats extends CommonDBTM
 {
-   // Action type constants
-   public const ACTION_DUPLICATE_BLOCKED = 'duplicate_blocked';
-   public const ACTION_FOLLOWUP_CREATED  = 'followup_created';
-   public const ACTION_TICKET_LINKED     = 'ticket_linked';
-   public const ACTION_NEW_TICKET        = 'new_ticket';
+    // Action type constants — public so other services can record events
+    public const ACTION_DUPLICATE_BLOCKED  = 'duplicate_blocked';
+    public const ACTION_FOLLOWUP_CREATED   = 'followup_created';
+    public const ACTION_TICKET_LINKED      = 'ticket_linked';
+    public const ACTION_NEW_TICKET         = 'new_ticket';
+    public const ACTION_BLACKLIST_REJECTED = 'blacklist_rejected';
+    public const ACTION_AUTH_REJECTED      = 'auth_rejected';
+    public const ACTION_ATTACHMENT_DEDUPED = 'attachment_deduped';
 
-   public static function getTable($classname = null): string
-   {
-      return 'glpi_plugin_mailanalyzer_stats';
-   }
+    public static function getTable($classname = null): string
+    {
+        return PluginMailanalyzerInstaller::TABLE_STATS;
+    }
 
-   /**
-    * Record a stats event in the database.
-    *
-    * @param string $action_type One of the ACTION_* constants
-    * @param int    $tickets_id Related ticket ID
-    * @param int    $mailcollectors_id Mail collector ID
-    * @param string $message_id Email Message-ID
-    * @return void
-    */
-   public static function record(
-      string $action_type,
-      int $tickets_id = 0,
-      int $mailcollectors_id = 0,
-      string $message_id = ''
-   ): void {
-      global $DB;
+    /**
+     * Lightweight helper: record without enriched audit fields.
+     * Most callers should use PluginMailanalyzerAuditLog::append() directly.
+     */
+    public static function record(
+        string $actionType,
+        int $ticketsId = 0,
+        int $mailcollectorsId = 0,
+        string $messageId = ''
+    ): void {
+        PluginMailanalyzerAuditLog::append(
+            $actionType,
+            $ticketsId,
+            $mailcollectorsId,
+            $messageId,
+            '',
+            '',
+            '',
+            ''
+        );
+    }
 
-      $result = $DB->insert(
-         'glpi_plugin_mailanalyzer_stats',
-         [
-            'action_type'       => $action_type,
-            'tickets_id'        => $tickets_id,
-            'mailcollectors_id' => $mailcollectors_id,
-            'message_id'        => $message_id,
-         ]
-      );
-      if (!$result) {
-         Toolbox::logError("MailAnalyzer: Failed to record stat event: $action_type");
-      }
-   }
+    /**
+     * Get aggregated action counts for a period.
+     *
+     * @return array<string, int>
+     */
+    public static function getSummary(string $period = 'all'): array
+    {
+        global $DB;
 
-   /**
-    * Get summary counts for the dashboard.
-    *
-    * @param string $period 'all', '7days', '30days', '90days'
-    * @return array<string, int>
-    */
-   public static function getSummary(string $period = 'all'): array
-   {
-      global $DB;
+        $summary = [
+            self::ACTION_DUPLICATE_BLOCKED  => 0,
+            self::ACTION_FOLLOWUP_CREATED   => 0,
+            self::ACTION_TICKET_LINKED      => 0,
+            self::ACTION_NEW_TICKET         => 0,
+            self::ACTION_BLACKLIST_REJECTED => 0,
+            self::ACTION_AUTH_REJECTED      => 0,
+            self::ACTION_ATTACHMENT_DEDUPED => 0,
+        ];
 
-      $where = [];
-      switch ($period) {
-         case '7days':
-            $where['date_created'] = ['>=', date('Y-m-d H:i:s', strtotime('-7 days'))];
-            break;
-         case '30days':
-            $where['date_created'] = ['>=', date('Y-m-d H:i:s', strtotime('-30 days'))];
-            break;
-         case '90days':
-            $where['date_created'] = ['>=', date('Y-m-d H:i:s', strtotime('-90 days'))];
-            break;
-      }
-
-      $summary = [
-         self::ACTION_DUPLICATE_BLOCKED => 0,
-         self::ACTION_FOLLOWUP_CREATED  => 0,
-         self::ACTION_TICKET_LINKED     => 0,
-         self::ACTION_NEW_TICKET        => 0,
-      ];
-
-      $criteria = [
-         'SELECT' => ['action_type', 'COUNT' => 'action_type AS count'],
-         'FROM'   => 'glpi_plugin_mailanalyzer_stats',
-         'GROUPBY' => 'action_type',
-      ];
-
-      if (!empty($where)) {
-         $criteria['WHERE'] = $where;
-      }
-
-      $res = $DB->request($criteria);
-      foreach ($res as $row) {
-         if (isset($summary[$row['action_type']])) {
-            $summary[$row['action_type']] = (int) $row['count'];
-         }
-      }
-
-      return $summary;
-   }
-
-   /**
-    * Get recent events for the activity log.
-    *
-    * @param int $limit Number of events to return
-    * @return array
-    */
-   public static function getRecentEvents(int $limit = 10): array
-   {
-      global $DB;
-
-      $events = [];
-      $res = $DB->request([
-         'FROM'    => 'glpi_plugin_mailanalyzer_stats',
-         'ORDER'   => 'date_created DESC',
-         'LIMIT'   => $limit,
-      ]);
-
-      foreach ($res as $row) {
-         $events[] = $row;
-      }
-      return $events;
-   }
-
-   /**
-    * Display the statistics dashboard in the config tab.
-    *
-    * @param string $period Period filter
-    * @return void
-    */
-   public static function showDashboard(string $period = '30days'): void
-   {
-      $summary = self::getSummary($period);
-      $total = array_sum($summary);
-      $events = self::getRecentEvents(15);
-
-      // Period selector using native GLPI Form
-      echo "<div class='center mb-3'>";
-      echo "<form method='post' action='" . Plugin::getWebDir('mailanalyzer') . "/front/stats.php'>";
-      echo "<input type='hidden' name='config_context' value='plugin:mailanalyzer'>";
-      echo "<input type='hidden' name='_glpi_tab' value='PluginMailanalyzerConfig$1'>";
-      $periods = [
-         '7days'  => __('Last 7 days', 'mailanalyzer'),
-         '30days' => __('Last 30 days', 'mailanalyzer'),
-         '90days' => __('Last 90 days', 'mailanalyzer'),
-         'all'    => __('All time', 'mailanalyzer'),
-      ];
-      echo "<table class='tab_cadre_fixe'>";
-      echo "<tr><th colspan='2'>" . __('Filter Statistics', 'mailanalyzer') . "</th></tr>";
-      echo "<tr class='tab_bg_1'>";
-      echo "<td>" . __('Period', 'mailanalyzer') . "</td>";
-      echo "<td>";
-      Dropdown::showFromArray('period', $periods, ['value' => $period]);
-      echo "&nbsp;<input type='submit' name='filter_stats' class='btn btn-primary btn-sm' value='" . _sx('button', 'Apply') . "'>";
-      echo "</td>";
-      echo "</tr>";
-      echo "</table>";
-      Html::closeForm();
-      echo "</div>";
-
-      // Stats cards
-      echo "<div class='center'>";
-      echo "<table class='tab_cadre_fixe'>";
-
-      echo "<tr><th colspan='4'>";
-      echo "<i class='fas fa-chart-bar me-1'></i> ";
-      echo __('Mail Analyzer Statistics', 'mailanalyzer');
-      echo "</th></tr>";
-
-      echo "<tr class='tab_bg_1'>";
-
-      // Card: Duplicates Blocked
-      echo "<td class='center' style='width:25%;padding:8px;'>";
-      echo "<div style='background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;border-radius:10px;padding:12px 8px;line-height:1.2;'>";
-      echo "<i class='fas fa-ban'></i> ";
-      echo "<span style='font-size:2em;font-weight:bold;'>{$summary[self::ACTION_DUPLICATE_BLOCKED]}</span><br>";
-      echo "<small>" . __('Duplicates Blocked', 'mailanalyzer') . "</small>";
-      echo "</div></td>";
-
-      // Card: Followups Created
-      echo "<td class='center' style='width:25%;padding:8px;'>";
-      echo "<div style='background:linear-gradient(135deg,#4ecdc4,#44bd62);color:#fff;border-radius:10px;padding:12px 8px;line-height:1.2;'>";
-      echo "<i class='fas fa-comments'></i> ";
-      echo "<span style='font-size:2em;font-weight:bold;'>{$summary[self::ACTION_FOLLOWUP_CREATED]}</span><br>";
-      echo "<small>" . __('Followups Created', 'mailanalyzer') . "</small>";
-      echo "</div></td>";
-
-      // Card: Tickets Linked
-      echo "<td class='center' style='width:25%;padding:8px;'>";
-      echo "<div style='background:linear-gradient(135deg,#a29bfe,#6c5ce7);color:#fff;border-radius:10px;padding:12px 8px;line-height:1.2;'>";
-      echo "<i class='fas fa-link'></i> ";
-      echo "<span style='font-size:2em;font-weight:bold;'>{$summary[self::ACTION_TICKET_LINKED]}</span><br>";
-      echo "<small>" . __('Tickets Linked', 'mailanalyzer') . "</small>";
-      echo "</div></td>";
-
-      // Card: New Tickets
-      echo "<td class='center' style='width:25%;padding:8px;'>";
-      echo "<div style='background:linear-gradient(135deg,#74b9ff,#0984e3);color:#fff;border-radius:10px;padding:12px 8px;line-height:1.2;'>";
-      echo "<i class='fas fa-ticket-alt'></i> ";
-      echo "<span style='font-size:2em;font-weight:bold;'>{$summary[self::ACTION_NEW_TICKET]}</span><br>";
-      echo "<small>" . __('New Tickets', 'mailanalyzer') . "</small>";
-      echo "</div></td>";
-
-      echo "</tr>";
-
-      // Total processed row
-      echo "<tr class='tab_bg_2'>";
-      echo "<td colspan='4' class='center' style='padding:10px;'>";
-      echo "<strong><i class='fas fa-envelope me-1'></i> ";
-      echo __('Total emails processed', 'mailanalyzer') . ": $total</strong>";
-      echo "</td></tr>";
-
-      echo "</table>";
-      echo "</div>";
-
-      // Recent activity table
-      if (!empty($events)) {
-         echo "<div class='center mt-3'>";
-         echo "<table class='tab_cadre_fixe'>";
-
-         echo "<tr><th colspan='5'>";
-         echo "<i class='fas fa-history me-1'></i> ";
-         echo __('Recent Activity', 'mailanalyzer');
-         echo "</th></tr>";
-
-         echo "<tr class='tab_bg_2'>";
-         echo "<th>" . __('Date', 'mailanalyzer') . "</th>";
-         echo "<th>" . __('Action', 'mailanalyzer') . "</th>";
-         echo "<th>" . __('Ticket', 'mailanalyzer') . "</th>";
-         echo "<th>" . __('Mail Collector', 'mailanalyzer') . "</th>";
-         echo "<th>" . __('Message ID', 'mailanalyzer') . "</th>";
-         echo "</tr>";
-
-         $actionLabels = [
-            self::ACTION_DUPLICATE_BLOCKED => '<span class="badge bg-danger"><i class="fas fa-ban"></i> ' . __('Duplicate Blocked', 'mailanalyzer') . '</span>',
-            self::ACTION_FOLLOWUP_CREATED  => '<span class="badge bg-success"><i class="fas fa-comments"></i> ' . __('Followup Created', 'mailanalyzer') . '</span>',
-            self::ACTION_TICKET_LINKED     => '<span class="badge bg-info"><i class="fas fa-link"></i> ' . __('Ticket Linked', 'mailanalyzer') . '</span>',
-            self::ACTION_NEW_TICKET        => '<span class="badge bg-primary"><i class="fas fa-ticket-alt"></i> ' . __('New Ticket', 'mailanalyzer') . '</span>',
-         ];
-
-         foreach ($events as $event) {
-            echo "<tr class='tab_bg_1'>";
-            echo "<td>" . Html::convDateTime($event['date_created']) . "</td>";
-            echo "<td>" . ($actionLabels[$event['action_type']] ?? $event['action_type']) . "</td>";
-
-            // Ticket link
-            if ($event['tickets_id'] > 0) {
-               $ticket = new Ticket();
-               if ($ticket->getFromDB($event['tickets_id'])) {
-                  echo "<td><a href='" . Ticket::getFormURLWithID($event['tickets_id']) . "'>";
-                  echo "<i class='fas fa-hashtag'></i> " . $event['tickets_id'] . " - " . $ticket->getName();
-                  echo "</a></td>";
-               } else {
-                  echo "<td><i class='fas fa-hashtag'></i> " . $event['tickets_id'] . " <small class='text-muted'>(" . __('deleted', 'mailanalyzer') . ")</small></td>";
-               }
-            } else {
-               echo "<td>—</td>";
+        $criteria = [
+            'SELECT'  => ['action_type', 'COUNT' => 'action_type AS count'],
+            'FROM'    => PluginMailanalyzerInstaller::TABLE_STATS,
+            'GROUPBY' => 'action_type',
+        ];
+        $where = self::periodWhere($period);
+        if (!empty($where)) {
+            $criteria['WHERE'] = $where;
+        }
+        foreach ($DB->request($criteria) as $row) {
+            if (isset($summary[$row['action_type']])) {
+                $summary[$row['action_type']] = (int) $row['count'];
             }
+        }
+        return $summary;
+    }
 
-            // Mail collector
-            if ($event['mailcollectors_id'] > 0) {
-               echo "<td><i class='fas fa-inbox'></i> #" . $event['mailcollectors_id'] . "</td>";
-            } else {
-               echo "<td>—</td>";
+    /**
+     * Recent events for the activity log table.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getRecentEvents(int $limit = 15): array
+    {
+        global $DB;
+
+        $events = [];
+        $res = $DB->request([
+            'FROM'  => PluginMailanalyzerInstaller::TABLE_STATS,
+            'ORDER' => ['date_created DESC'],
+            'LIMIT' => $limit,
+        ]);
+        foreach ($res as $row) {
+            $events[] = $row;
+        }
+        return $events;
+    }
+
+    /**
+     * Render the dashboard via Twig.
+     */
+    public static function showDashboard(string $period = '30days'): void
+    {
+        $summary = self::getSummary($period);
+        $events  = self::getRecentEvents(15);
+        $total   = array_sum($summary);
+
+        $rows = [];
+        foreach ($events as $e) {
+            $ticketLink = null;
+            if ((int) $e['tickets_id'] > 0) {
+                $t = new Ticket();
+                if ($t->getFromDB((int) $e['tickets_id'])) {
+                    $ticketLink = [
+                        'href'   => Ticket::getFormURLWithID((int) $e['tickets_id']),
+                        'label'  => sprintf('#%d — %s', (int) $e['tickets_id'], $t->getName()),
+                        'exists' => true,
+                    ];
+                } else {
+                    $ticketLink = [
+                        'href'   => '',
+                        'label'  => sprintf('#%d', (int) $e['tickets_id']),
+                        'exists' => false,
+                    ];
+                }
             }
+            $msgId = (string) ($e['message_id'] ?? '');
+            $rows[] = [
+                'date_created'    => Html::convDateTime($e['date_created']),
+                'action_type'     => $e['action_type'],
+                'action_label'    => self::actionLabel($e['action_type']),
+                'tickets_id'      => (int) $e['tickets_id'],
+                'ticket_link'     => $ticketLink,
+                'mailcollectors_id' => (int) $e['mailcollectors_id'],
+                'from_email'      => (string) ($e['from_email'] ?? ''),
+                'subject'         => (string) ($e['subject'] ?? ''),
+                'message_id'      => $msgId,
+                'message_id_short' => mb_strlen($msgId) > 40
+                    ? mb_substr($msgId, 0, 40) . '…'
+                    : $msgId,
+                'decision_reason' => (string) ($e['decision_reason'] ?? ''),
+            ];
+        }
 
-            // Message ID (truncated)
-            $msgId = htmlspecialchars($event['message_id']);
-            $shortId = strlen($msgId) > 40 ? substr($msgId, 0, 40) . '…' : $msgId;
-            echo "<td><small title='$msgId'>$shortId</small></td>";
+        TemplateRenderer::getInstance()->display('@mailanalyzer/dashboard.html.twig', [
+            'period'      => $period,
+            'periods'     => [
+                '7days'  => __('Last 7 days', 'mailanalyzer'),
+                '30days' => __('Last 30 days', 'mailanalyzer'),
+                '90days' => __('Last 90 days', 'mailanalyzer'),
+                'all'    => __('All time', 'mailanalyzer'),
+            ],
+            'summary'     => $summary,
+            'total'       => $total,
+            'events'      => $rows,
+            'stats_url'   => Plugin::getWebDir('mailanalyzer') . '/front/stats.php',
+            'export_url'  => Plugin::getWebDir('mailanalyzer') . '/front/export.php',
+            'csrf_token_value' => Session::getNewCSRFToken(),
+        ]);
+    }
 
-            echo "</tr>";
-         }
+    /**
+     * Render the mail-collector health-check panel via Twig.
+     */
+    public static function showHealthCheck(): void
+    {
+        global $DB;
 
-         echo "</table>";
-         echo "</div>";
-      }
-   }
+        $items = [];
+        foreach ($DB->request(['FROM' => 'glpi_mailcollectors']) as $mc) {
+            $lastDate = null;
+            $res = $DB->request([
+                'SELECT' => ['MAX' => 'date_created AS last_date'],
+                'FROM'   => PluginMailanalyzerInstaller::TABLE_STATS,
+                'WHERE'  => ['mailcollectors_id' => $mc['id']],
+            ]);
+            if ($row = $res->current()) {
+                $lastDate = $row['last_date'] ?: null;
+            }
+            $items[] = [
+                'name'        => $mc['name'],
+                'errors'      => (int) $mc['errors'],
+                'is_active'   => (int) $mc['is_active'] === 1,
+                'last_date'   => $lastDate ? Html::convDateTime($lastDate) : __('Never', 'mailanalyzer'),
+            ];
+        }
 
-   /**
-    * Purge orphaned records from the message_id table.
-    * Removes records referencing tickets that no longer exist.
-    *
-    * @return int Number of records purged
-    */
-   public static function purgeOrphans(): int
-   {
-      global $DB;
+        TemplateRenderer::getInstance()->display('@mailanalyzer/healthcheck.html.twig', [
+            'collectors' => $items,
+        ]);
+    }
 
-      // Find message_id records where the ticket no longer exists
-      $query = "DELETE m FROM `glpi_plugin_mailanalyzer_message_id` m
-                LEFT JOIN `glpi_tickets` t ON m.`tickets_id` = t.`id`
-                WHERE m.`tickets_id` != 0 AND t.`id` IS NULL";
+    /**
+     * Purge orphaned records: message-id rows pointing to tickets that no
+     * longer exist in glpi_tickets.
+     */
+    public static function purgeOrphans(): int
+    {
+        global $DB;
 
-      $DB->doQuery($query);
-      $purged = $DB->affectedRows();
+        $orphans = $DB->request([
+            'SELECT' => ['m.id'],
+            'FROM'   => PluginMailanalyzerInstaller::TABLE_MESSAGE_ID . ' AS m',
+            'LEFT JOIN' => [
+                'glpi_tickets AS t' => [
+                    'ON' => ['m' => 'tickets_id', 't' => 'id'],
+                ],
+            ],
+            'WHERE' => [
+                'm.tickets_id' => ['!=', 0],
+                'TYPE'         => 'AND',
+                'OR' => [
+                    ['t.id' => null],
+                ],
+            ],
+        ]);
 
-      if ($purged > 0) {
-         Toolbox::logInfo("MailAnalyzer: Purged $purged orphaned message_id records");
-      }
+        $ids = [];
+        foreach ($orphans as $row) {
+            $ids[] = (int) $row['id'];
+        }
+        if (empty($ids)) {
+            return 0;
+        }
+        $DB->delete(PluginMailanalyzerInstaller::TABLE_MESSAGE_ID, ['id' => $ids]);
+        Toolbox::logInfo('MailAnalyzer: Purged ' . count($ids) . ' orphaned message_id records');
+        return count($ids);
+    }
 
-      return $purged;
-   }
+    private static function periodWhere(string $period): array
+    {
+        return match ($period) {
+            '7days'  => ['date_created' => ['>=', date('Y-m-d H:i:s', strtotime('-7 days'))]],
+            '30days' => ['date_created' => ['>=', date('Y-m-d H:i:s', strtotime('-30 days'))]],
+            '90days' => ['date_created' => ['>=', date('Y-m-d H:i:s', strtotime('-90 days'))]],
+            default  => [],
+        };
+    }
+
+    private static function actionLabel(string $actionType): array
+    {
+        $map = [
+            self::ACTION_DUPLICATE_BLOCKED  => ['icon' => 'fa-ban',        'css' => 'bg-danger',  'text' => __('Duplicate Blocked', 'mailanalyzer')],
+            self::ACTION_FOLLOWUP_CREATED   => ['icon' => 'fa-comments',   'css' => 'bg-success', 'text' => __('Followup Created', 'mailanalyzer')],
+            self::ACTION_TICKET_LINKED      => ['icon' => 'fa-link',       'css' => 'bg-info',    'text' => __('Ticket Linked', 'mailanalyzer')],
+            self::ACTION_NEW_TICKET         => ['icon' => 'fa-ticket-alt', 'css' => 'bg-primary', 'text' => __('New Ticket', 'mailanalyzer')],
+            self::ACTION_BLACKLIST_REJECTED => ['icon' => 'fa-shield-alt', 'css' => 'bg-dark',    'text' => __('Blacklist Rejected', 'mailanalyzer')],
+            self::ACTION_AUTH_REJECTED      => ['icon' => 'fa-user-shield','css' => 'bg-dark',    'text' => __('Auth Failed', 'mailanalyzer')],
+            self::ACTION_ATTACHMENT_DEDUPED => ['icon' => 'fa-clone',      'css' => 'bg-warning', 'text' => __('Attachment Deduped', 'mailanalyzer')],
+        ];
+        return $map[$actionType] ?? ['icon' => 'fa-question', 'css' => 'bg-secondary', 'text' => $actionType];
+    }
+
+    /**
+     * GLPI search options for the audit-log table.
+     */
+    public function rawSearchOptions(): array
+    {
+        $tab = [];
+        $tab[] = [
+            'id'   => 'common',
+            'name' => __('Audit log', 'mailanalyzer'),
+        ];
+        $tab[] = [
+            'id'            => 1,
+            'table'         => self::getTable(),
+            'field'         => 'date_created',
+            'name'          => __('Date'),
+            'datatype'      => 'datetime',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 2,
+            'table'         => self::getTable(),
+            'field'         => 'action_type',
+            'name'          => __('Action'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 3,
+            'table'         => self::getTable(),
+            'field'         => 'tickets_id',
+            'name'          => __('Ticket'),
+            'datatype'      => 'number',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 4,
+            'table'         => self::getTable(),
+            'field'         => 'mailcollectors_id',
+            'name'          => __('Mail Collector'),
+            'datatype'      => 'number',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 5,
+            'table'         => self::getTable(),
+            'field'         => 'message_id',
+            'name'          => __('Message ID'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 6,
+            'table'         => self::getTable(),
+            'field'         => 'from_email',
+            'name'          => __('From', 'mailanalyzer'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 7,
+            'table'         => self::getTable(),
+            'field'         => 'subject',
+            'name'          => __('Subject', 'mailanalyzer'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 8,
+            'table'         => self::getTable(),
+            'field'         => 'subject_hash',
+            'name'          => __('Subject hash', 'mailanalyzer'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        $tab[] = [
+            'id'            => 9,
+            'table'         => self::getTable(),
+            'field'         => 'decision_reason',
+            'name'          => __('Reason', 'mailanalyzer'),
+            'datatype'      => 'string',
+            'massiveaction' => false,
+        ];
+        return $tab;
+    }
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Mail Analyzer audit entry', 'Mail Analyzer audit entries', $nb, 'mailanalyzer');
+    }
+
+    public static function getIcon(): string
+    {
+        return 'fas fa-history';
+    }
 }

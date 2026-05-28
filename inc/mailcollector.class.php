@@ -1,37 +1,21 @@
 <?php
 /*
 -------------------------------------------------------------------------
-MailAnalyzer plugin for GLPI
-Copyright (C) 2011-2025 by Raynet SAS a company of A.Raymond Network.
-
-https://www.araymond.com/
--------------------------------------------------------------------------
-
-LICENSE
-
-This file is part of MailAnalyzer plugin for GLPI.
-
-This file is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This plugin is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this plugin. If not, see <http://www.gnu.org/licenses/>.
+MailAnalyzer plugin for GLPI — Extended MailCollector.
+Copyright (C) 2011-2026 by Raynet SAS a company of A.Raymond Network.
+GPLv2+
 --------------------------------------------------------------------------
 */
 
 use Laminas\Mail\Storage\Message;
 
 /**
- * Extended MailCollector for the MailAnalyzer plugin.
- * Provides direct access to mail storage for reading headers
- * (Thread-Index, References) and managing emails.
+ * Thin wrapper around the IMAP/POP3 storage to:
+ *  - open a dedicated connection (so we can read raw headers safely),
+ *  - extract the Microsoft Exchange Thread-Index,
+ *  - move/delete a single message by its UID.
+ *
+ * Re-uses the standard `glpi_mailcollectors` table — no schema of its own.
  */
 class PluginMailanalyzerMailCollector extends CommonDBTM
 {
@@ -44,34 +28,29 @@ class PluginMailanalyzerMailCollector extends CommonDBTM
     }
 
     /**
-     * Connect to the mail server using the collector configuration.
+     * Connect to the mail server using stored collector credentials.
      *
-     * @return void
-     * @throws \Exception If connection fails
+     * @throws \Exception on unsupported server type / IMAP failure
      */
     public function connect(): void
     {
         $config = Toolbox::parseMailServerConnectString($this->fields['host']);
 
         $params = [
-            'host'      => $config['address'],
-            'user'      => $this->fields['login'],
-            'password'  => (new GLPIKey())->decrypt($this->fields['passwd']),
-            'port'      => $config['port']
+            'host'     => $config['address'],
+            'user'     => $this->fields['login'],
+            'password' => (new GLPIKey())->decrypt($this->fields['passwd']),
+            'port'     => $config['port'],
         ];
-
         if ($config['ssl']) {
             $params['ssl'] = 'SSL';
         }
-
         if ($config['tls']) {
             $params['ssl'] = 'TLS';
         }
-
         if (!empty($config['mailbox'])) {
             $params['folder'] = mb_convert_encoding($config['mailbox'], 'UTF7-IMAP', 'UTF-8');
         }
-
         if ($config['validate-cert'] === false) {
             $params['novalidatecert'] = true;
         }
@@ -82,91 +61,88 @@ class PluginMailanalyzerMailCollector extends CommonDBTM
                 throw new \Exception(sprintf(__('Unsupported mail server type:%s.'), $config['type']));
             }
             $this->storage = $storage;
-            if ($this->fields['errors'] > 0) {
-                $this->update([
-                    'id'     => $this->getID(),
-                    'errors' => 0
-                ]);
+            if ((int) ($this->fields['errors'] ?? 0) > 0) {
+                $this->update(['id' => $this->getID(), 'errors' => 0]);
             }
         } catch (\Throwable $e) {
             $this->update([
                 'id'     => $this->getID(),
-                'errors' => ($this->fields['errors'] + 1)
+                'errors' => (int) ($this->fields['errors'] ?? 0) + 1,
             ]);
-            Toolbox::logError("MailAnalyzer: Mail server connection failed - " . $e->getMessage());
+            Toolbox::logError('MailAnalyzer: mail server connect failed - ' . $e->getMessage());
             throw $e;
         }
     }
 
     /**
-     * Extract Thread-Index header from an email message.
-     * The Thread-Index is a Microsoft Exchange-specific header used
-     * to track email conversation threads.
-     *
-     * @param Message $message The email message to extract from
-     * @return string|null Hex-encoded Thread-Index or null if not present
+     * Extract Microsoft Exchange Thread-Index from a message header.
+     * Returns the 16-byte conversation prefix as hex (string), or null.
      */
     public function getThreadIndex(Message $message): ?string
     {
         try {
-            if (isset($message->threadindex)) {
-                if ($val = $message->getHeader('threadindex')) {
-                    return bin2hex(substr(base64_decode($val->getFieldValue()), 6, 16));
-                }
+            if (!isset($message->threadindex)) {
+                return null;
             }
+            $h = $message->getHeader('threadindex');
+            if (!$h) {
+                return null;
+            }
+            $decoded = base64_decode((string) $h->getFieldValue(), true);
+            if ($decoded === false || strlen($decoded) < 22) {
+                return null;
+            }
+            return bin2hex(substr($decoded, 6, 16));
         } catch (\Throwable $e) {
-            Toolbox::logWarning("MailAnalyzer: Failed to extract Thread-Index - " . $e->getMessage());
+            Toolbox::logWarning('MailAnalyzer: Thread-Index extract failed - ' . $e->getMessage());
+            return null;
         }
-        return null;
     }
 
     /**
-     * Get a specific message from the mail storage by its unique ID.
+     * Fetch a message by its server-side unique ID.
      *
-     * @param string $uid Unique ID of the message
-     * @return Message The email message
-     * @throws \Throwable If the message cannot be retrieved
+     * @throws \Throwable on lookup failure
      */
     public function getMessage(string $uid): Message
     {
         try {
-            return $this->storage->getMessage($this->storage->getNumberByUniqueId($uid));
+            return $this->storage->getMessage(
+                $this->storage->getNumberByUniqueId($uid)
+            );
         } catch (\Throwable $e) {
-            Toolbox::logError("MailAnalyzer: Unable to get message UID: $uid - " . $e->getMessage());
+            Toolbox::logError("MailAnalyzer: getMessage UID=$uid failed - " . $e->getMessage());
             throw $e;
         }
     }
 
     /**
-     * Delete or move a mail from the mailbox.
-     *
-     * @param string $uid    Mail UID
-     * @param string $folder Folder to move to (delete if empty)
-     * @return bool True on success
+     * Move (or, for POP / on failure, delete) a single mail by UID.
      */
     public function deleteMails(string $uid, string $folder = ''): bool
     {
-        // Disable move support, POP protocol only has the INBOX folder
-        if (strstr($this->fields['host'], "/pop")) {
+        // POP only has INBOX — no folder support
+        if (str_contains((string) $this->fields['host'], '/pop')) {
             $folder = '';
         }
 
-        if (!empty($folder) && isset($this->fields[$folder]) && !empty($this->fields[$folder])) {
-            $name = mb_convert_encoding($this->fields[$folder], "UTF7-IMAP", "UTF-8");
+        if ($folder !== '' && !empty($this->fields[$folder])) {
+            $name = mb_convert_encoding($this->fields[$folder], 'UTF7-IMAP', 'UTF-8');
             try {
-                $this->storage->moveMessage($this->storage->getNumberByUniqueId($uid), $name);
+                $this->storage->moveMessage(
+                    $this->storage->getNumberByUniqueId($uid),
+                    $name
+                );
                 return true;
             } catch (\Throwable $e) {
-                // raise an error and fallback to delete
-                Toolbox::logWarning(
-                    sprintf(
-                        "MailAnalyzer: Invalid configuration for %s folder in receiver %s - falling back to delete",
-                        $folder,
-                        $this->getName()
-                    )
-                );
+                Toolbox::logWarning(sprintf(
+                    'MailAnalyzer: invalid %s folder on %s — falling back to delete',
+                    $folder,
+                    $this->getName()
+                ));
             }
         }
+
         $this->storage->removeMessage($this->storage->getNumberByUniqueId($uid));
         return true;
     }

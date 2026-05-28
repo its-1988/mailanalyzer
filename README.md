@@ -5,231 +5,283 @@
 </p>
 
 <p align="center">
-  <a href="#-english">English</a> • 
+  <a href="#-english">English</a> •
+  <a href="#-русский">Русский</a> •
   <a href="#-português">Português</a>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square" alt="GLPI 11">
+  <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
+  <img src="https://img.shields.io/badge/Version-5.0.0-orange?style=flat-square" alt="Version 5.0.0">
+  <img src="https://img.shields.io/badge/License-GPLv2%2B-green?style=flat-square" alt="GPLv2+">
+</p>
+
+---
+
+<h2 id="-english">🇬🇧 English</h2>
+
+**Intelligent email conversation tracking + ITIL routing for GLPI 11**
+
+Combines related emails into one ticket, blocks duplicates, classifies Incident vs Service Request, escalates VIP senders, validates SPF/DKIM/DMARC, deduplicates attachments, and ships a complete audit log with CSV export.
+
+### ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔁 **Duplicate detection** | Blocks duplicate tickets by `Message-ID` and (fallback) by SHA-1 of normalised subject within a configurable window |
+| 💬 **Auto follow-up** | Replies to open tickets become `ITILFollowup` entries with `add_reopen=1` |
+| 🔗 **Ticket linking** | Replies to closed tickets create a new ticket linked to the original |
+| 🧵 **Thread-Index** | Microsoft Exchange `Thread-Index` header parsing for richer conversation matching |
+| 🎯 **Smart ITIL classification** | Detects Incident vs Service Request from configurable keyword dictionaries; applied to `Ticket::$input` before business rules fire |
+| ⭐ **VIP escalation** | Listed senders / domains get maximum urgency and bypass subject-hash dedup |
+| 🛡️ **SPF / DKIM / DMARC** | Reads RFC 8601 `Authentication-Results` set by the upstream MTA and rejects failed messages (policy is per-check) |
+| 📎 **Attachment dedup** | Skips identical attachments on the same ticket by SHA-256 — saves storage on long signature-heavy threads |
+| 🚦 **Domain filters** | Whitelist / blacklist / VIP lists, one entry per line, full address or `@domain` |
+| 🔔 **Smart alerts** | Native GLPI `NotificationEvent` raised when N duplicates are blocked within a window (both configurable) |
+| 📊 **Dashboard** | Twig-rendered statistics with period filter, recent activity, decision reasoning |
+| 📋 **Full audit log** | Every decision stored with `from_email`, `subject`, `subject_hash`, `decision_reason` — searchable via GLPI Search Engine |
+| 📤 **CSV export** | UTF-8 + BOM (Excel-friendly), respects the dashboard period filter |
+| ⏱️ **Auto cleanup** | Native GLPI CronTask trims orphans and old stats daily |
+| 🛠️ **CLI cleanup** | `php bin/console mailanalyzer:cleanup` with `--dry-run`, `--stats-days=N` |
+| 🌍 **i18n** | `en_GB`, `ru_RU`, `pt_BR` shipped |
+
+### 📋 Requirements
+
+| Requirement | Version |
+|-------------|---------|
+| GLPI        | `>= 11.0.0` and `< 11.1` |
+| PHP         | `>= 8.2` |
+| Database    | MySQL 8.0+ / MariaDB 10.5+ |
+
+### 🚀 Installation
+
+1. Extract the `mailanalyzer` folder into `<glpi>/plugins/`
+2. Navigate to **Setup → Plugins** in GLPI
+3. Click **Install** then **Enable**
+
+### ⚙️ Configuration
+
+Go to **Setup → General → Mail Analyzer**. All options live in the `plugin:mailanalyzer` config context and are validated server-side.
+
+#### Sections
+
+- **Thread tracking** — toggle Microsoft Exchange `Thread-Index`
+- **Domain filters** — whitelist / blacklist / VIP
+- **Smart classification (ITIL)** — keyword dictionaries for Incident, Service Request, high-urgency, plus default type
+- **Smart duplicate detection** — enable subject-hash fallback dedup + window
+- **Sender authentication** — SPF / DKIM / DMARC policies (per-check reject toggle)
+- **Attachment deduplication** — SHA-256 dedup on per-ticket attachments
+- **Alerts** — threshold + window for the duplicate-storm `NotificationEvent`
+
+### 🔧 How it works
+
+```mermaid
+flowchart TD
+    A[📨 Email arrives] --> B{Sender on blacklist?}
+    B -->|Yes| BL[🚫 Reject + audit]
+    B -->|No| C{SPF/DKIM/DMARC OK?}
+    C -->|Fail policy| AF[🛡️ Reject + audit]
+    C -->|OK| D{Message-ID in DB?}
+    D -->|Yes| DUP[🚫 Block dup + audit + alert?]
+    D -->|No| E{Subject-hash match in window?}
+    E -->|Yes| DUP
+    E -->|No| F{References / Thread-Index match?}
+    F -->|Open ticket| FU[💬 ITILFollowup add_reopen]
+    F -->|Closed ticket| LK[🔗 New ticket linked to old]
+    F -->|No| G[🎯 Classify Incident/Request + VIP boost]
+    G --> H[🎫 New ticket + persist refs]
+```
+
+### 🖥️ CLI Commands
+
+```bash
+# Purge orphan message_id rows + show summary
+php bin/console mailanalyzer:cleanup
+
+# Also trim stats older than 90 days
+php bin/console mailanalyzer:cleanup --stats-days=90
+
+# Preview only — no changes
+php bin/console mailanalyzer:cleanup --dry-run
+```
+
+### 📁 File structure
+
+```
+mailanalyzer/
+├── front/
+│   ├── config.form.php           # → Setup → Config tab redirect
+│   ├── stats.php                 # Period filter POST endpoint
+│   ├── export.php                # CSV export endpoint
+│   ├── auditlog.php              # GLPI Search view (audit log)
+│   └── messageid.php             # GLPI Search view (message-id table)
+├── inc/
+│   ├── mailanalyzer.class.php    # Thin orchestrator (hooks → services)
+│   ├── installer.class.php       # DB schema (clean GLPI 11)
+│   ├── domainfilter.class.php    # Whitelist / blacklist / VIP
+│   ├── threadresolver.class.php  # Message-ID / Thread-Index / References / subject-hash
+│   ├── classifier.class.php      # ITIL: Incident vs Service Request, urgency keywords
+│   ├── authvalidator.class.php   # SPF / DKIM / DMARC verdict from Authentication-Results
+│   ├── attachmentdedup.class.php # SHA-256 attachment dedup (Document_Item hook)
+│   ├── auditlog.class.php        # Append-only audit log
+│   ├── notificationdispatcher.class.php  # Duplicate-storm alerts
+│   ├── exporter.class.php        # CSV streaming exporter
+│   ├── mailcollector.class.php   # IMAP/POP wrapper (Thread-Index, deleteMails)
+│   ├── stats.class.php           # Dashboard + Search options
+│   ├── messageid.class.php       # Search options for message_id table
+│   ├── config.class.php          # Settings tab
+│   ├── crontask.class.php        # Native CronTask for housekeeping
+│   └── cleanupcommand.class.php  # bin/console mailanalyzer:cleanup
+├── templates/                    # Twig (Bootstrap 5)
+│   ├── config.html.twig
+│   ├── dashboard.html.twig
+│   └── healthcheck.html.twig
+├── locales/
+│   ├── en_GB.po / .mo
+│   ├── ru_RU.po / .mo
+│   ├── pt_BR.po / .mo
+│   └── _compile_mo.py            # Helper for compiling PO → MO without msgfmt
+├── hook.php                      # Install/uninstall (thin: → Installer)
+├── setup.php                     # Plugin metadata + hook registration
+├── mailanalyzer.xml              # Plugin catalogue metadata
+└── logo.png
+```
+
+### 🗄️ Database tables
+
+| Table | Purpose |
+|-------|---------|
+| `glpi_plugin_mailanalyzer_message_id` | `(message_id, mailcollectors_id) → tickets_id` plus `subject_hash`, `date_created` for fallback dedup |
+| `glpi_plugin_mailanalyzer_stats` | Full audit log: `action_type`, `tickets_id`, `from_email`, `subject`, `subject_hash`, `decision_reason`, `date_created` |
+| `glpi_plugin_mailanalyzer_attachments` | `(tickets_id, sha256) → documents_id` for attachment dedup |
+
+---
+
+<h2 id="-русский">🇷🇺 Русский</h2>
+
+**Умный анализ почтовых цепочек + ITIL-маршрутизация для GLPI 11**
+
+Объединяет связанные письма в одну заявку, блокирует дубликаты, классифицирует Инцидент vs Запрос на обслуживание, эскалирует VIP-отправителей, проверяет SPF/DKIM/DMARC, дедуплицирует вложения. Полный аудит-лог и экспорт в CSV в комплекте.
+
+### ✨ Возможности
+
+| Функция | Описание |
+|---------|----------|
+| 🔁 **Обнаружение дубликатов** | По `Message-ID` и резервно по SHA-1 нормализованной темы в настраиваемом окне |
+| 💬 **Авто-комментарии** | Ответы на открытые заявки добавляются как `ITILFollowup` с `add_reopen=1` |
+| 🔗 **Связанные заявки** | Ответы на закрытые заявки создают новую заявку, связанную с исходной |
+| 🧵 **Thread-Index** | Разбор заголовка `Thread-Index` Microsoft Exchange для точного отслеживания цепочек |
+| 🎯 **ITIL-классификация** | Определение типа (Инцидент / Запрос на обслуживание) по словарям ключевых слов |
+| ⭐ **VIP-эскалация** | Отправители/домены в списке VIP получают максимальную срочность |
+| 🛡️ **SPF / DKIM / DMARC** | Читает `Authentication-Results` от вышестоящего MTA, политика отказа настраивается по каждой проверке |
+| 📎 **Дедуп вложений** | Пропускает одинаковые вложения в одной заявке по SHA-256 |
+| 🚦 **Фильтры доменов** | Whitelist / Blacklist / VIP — по одной записи в строке, полный адрес или `@домен` |
+| 🔔 **Умные алерты** | Нативный GLPI `NotificationEvent` при «шторме дубликатов» (порог + окно настраиваются) |
+| 📊 **Дашборд** | Twig + Bootstrap 5: статистика, недавняя активность, обоснования решений |
+| 📋 **Полный аудит-лог** | Каждое решение с `from_email`, `subject`, `subject_hash`, `decision_reason` — ищется через GLPI Search |
+| 📤 **Экспорт CSV** | UTF-8 + BOM (открывается в Excel без проблем), фильтр по периоду |
+| ⏱️ **Авточистка** | Нативный GLPI CronTask убирает осиротевшие записи и старую статистику |
+| 🛠️ **CLI-очистка** | `php bin/console mailanalyzer:cleanup` с `--dry-run`, `--stats-days=N` |
+| 🌍 **i18n** | В комплекте `ru_RU`, `en_GB`, `pt_BR` |
+
+### 📋 Требования
+
+| Требование | Версия |
+|------------|--------|
+| GLPI       | `>= 11.0.0` и `< 11.1` |
+| PHP        | `>= 8.2` |
+| СУБД       | MySQL 8.0+ / MariaDB 10.5+ |
+
+### 🚀 Установка
+
+1. Распаковать папку `mailanalyzer` в `<glpi>/plugins/`
+2. В GLPI: **Настройка → Плагины**
+3. Нажать **Установить**, затем **Включить**
+
+### ⚙️ Конфигурация
+
+**Настройка → Общие → Mail Analyzer**. Все параметры хранятся в контексте `plugin:mailanalyzer`.
+
+#### Разделы настроек
+
+- **Отслеживание цепочек** — переключатель Thread-Index
+- **Фильтры доменов** — whitelist / blacklist / VIP
+- **Умная классификация (ITIL)** — словари ключевых слов для Инцидента, Запроса на обслуживание, высокой срочности; тип по умолчанию
+- **Умное обнаружение дубликатов** — резервный дедуп по хэшу темы + окно
+- **Аутентификация отправителя** — SPF / DKIM / DMARC: отдельный переключатель отказа по каждой проверке
+- **Дедупликация вложений** — SHA-256-дедуп вложений в пределах заявки
+- **Уведомления** — порог и окно для шторма дубликатов
+
+### 🔍 Поиск по таблицам плагина
+
+В меню **Plugins → Mail Analyzer** доступны два экрана нативного GLPI Search:
+
+- **Audit log** — фильтрация по действию, отправителю, теме, периоду
+- **Message-IDs** — поиск по конкретному Message-ID, привязке к заявке
+
+### 🖥️ CLI-команды
+
+```bash
+# Очистка осиротевших записей + сводка
+php bin/console mailanalyzer:cleanup
+
+# Дополнительно подрезать статистику старше 90 дней
+php bin/console mailanalyzer:cleanup --stats-days=90
+
+# Только просмотр — без изменений
+php bin/console mailanalyzer:cleanup --dry-run
+```
+
+### 🌐 Перевод
+
+`.po`-файлы — в `locales/`. Чтобы пересобрать `.mo` без установленного `msgfmt`:
+
+```powershell
+python locales/_compile_mo.py locales/ru_RU.po locales/ru_RU.mo
+```
 
 ---
 
 <h2 id="-português">🇧🇷 Português</h2>
 
-<p align="center">
-  <strong>Análise inteligente de conversas por e-mail para GLPI 11</strong><br>
-  Combina automaticamente e-mails relacionados em um único chamado, evitando duplicatas.
-</p>
+**Análise inteligente de conversas por e-mail + roteamento ITIL para GLPI 11**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square&logo=data:image/svg+xml;base64," alt="GLPI 11">
-  <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
-  <img src="https://img.shields.io/badge/Versão-4.1.0-orange?style=flat-square" alt="Versão">
-</p>
+Combina e-mails relacionados em um único chamado, evita duplicatas, classifica Incidente vs Requisição de Serviço, escalona remetentes VIP, valida SPF/DKIM/DMARC e deduplicate anexos.
 
 ### ✨ Funcionalidades
 
 | Funcionalidade | Descrição |
-|-----------|-------------|
-| 🔁 **Detecção de Duplicatas** | Bloqueia chamados duplicados quando o mesmo e-mail é recebido múltiplas vezes |
-| 💬 **Acompanhamento Automático** | Respostas a chamados existentes são adicionadas automaticamente como acompanhamentos |
-| 🔗 **Vinculação de Chamados** | Ao responder a um chamado fechado, cria um novo chamado vinculado |
-| 🧵 **Suporte a Thread-Index** | Análise do cabeçalho `Thread-Index` do Microsoft Exchange para melhor rastreamento |
-| 📊 **Painel de Estatísticas** | Painel visual com estatísticas em tempo real sobre e-mails processados |
-| 🛡️ **Filtragem de Domínio** | Suporte a Whitelist e Blacklist para priorizar ou ignorar domínios específicos |
-| ⚕️ **Health Check** | Monitoramento em tempo real de conexões e falhas de Coletores de E-mail |
-| 🔔 **Alertas Inteligentes** | Dispara notificações nativas do GLPI quando excesso de duplicatas são bloqueadas |
-| ⏱️ **Limpeza Automática** | Integração com CronTask nativa do GLPI para manutenção agendada |
-| 🌍 **Pronto para i18n** | Interface totalmente traduzível (pt_BR incluído) |
-| 🛠️ **Limpeza via CLI** | Comando de console para limpar registros órfãos e estatísticas antigas |
+|----------------|-----------|
+| 🔁 **Detecção de Duplicatas** | Bloqueia chamados duplicados pelo `Message-ID` e (fallback) por hash da assunto |
+| 💬 **Acompanhamento Automático** | Respostas a chamados existentes viram acompanhamentos |
+| 🔗 **Vinculação de Chamados** | Resposta a um chamado fechado cria novo chamado vinculado |
+| 🧵 **Suporte a Thread-Index** | Análise do cabeçalho `Thread-Index` do Microsoft Exchange |
+| 🎯 **Classificação ITIL** | Detecta Incidente vs Requisição por palavras-chave |
+| ⭐ **Escalada VIP** | Remetentes/domínios VIP recebem urgência máxima |
+| 🛡️ **SPF / DKIM / DMARC** | Valida o cabeçalho `Authentication-Results` |
+| 📎 **Dedup de Anexos** | Pula anexos idênticos (SHA-256) no mesmo chamado |
+| 📋 **Auditoria completa** | Cada decisão registrada com motivo legível |
+| 📤 **Exportação CSV** | UTF-8 + BOM, respeita o filtro de período |
 
 ### 📋 Requisitos
 
 | Requisito | Versão |
-|------------|---------|
-| GLPI | `>= 11.0.0` e `< 11.1` |
-| PHP | `>= 8.2` |
-| Banco de Dados | MySQL 8.0+ / MariaDB 10.5+ |
-
-### 🚀 Instalação
-
-1. Baixe a última versão
-2. Extraia a pasta `mailanalyzer` no diretório `plugins/` do seu GLPI
-3. Vá em **Configurações > Plugins** no GLPI
-4. Clique em **Instalar** e depois em **Habilitar**
-
-### ⚙️ Configuração
-
-Navegue até a aba **Configurações > Geral > Mail Analyzer**.
-
-#### Opções
-
-| Opção | Descrição |
-|--------|-------------|
-| **Usar Thread-Index** | Ativa suporte ao cabeçalho `Thread-Index` para melhor agrupamento de conversas |
-| **Whitelist de Domínios** | Domínios que devem ignorar certos bloqueios (ex: `@empresa.com.br`) |
-| **Blacklist de Domínios** | Domínios que são completamente ignorados (ex: `@spam.com`) |
+|-----------|--------|
+| GLPI      | `>= 11.0.0` e `< 11.1` |
+| PHP       | `>= 8.2` |
 
 ---
 
-<h2 id="-english">🇺🇸 English</h2>
+## 📄 License / Лицензия / Licença
 
-<p align="center">
-  <strong>Intelligent email conversation tracking for GLPI 11</strong><br>
-  Automatically combines related emails into a single ticket, preventing duplicates.
-</p>
+GNU General Public License v2.0 or later (**GPL-2.0+**).
 
-<p align="center">
-  <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square&logo=data:image/svg+xml;base64," alt="GLPI 11">
-  <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
-  <img src="https://img.shields.io/badge/Version-4.1.0-orange?style=flat-square" alt="Version">
-</p>
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 🔁 **Duplicate Detection** | Blocks duplicate tickets when the same email is received multiple times |
-| 💬 **Auto Followup** | Replies to existing tickets are automatically added as followups instead of creating new tickets |
-| 🔗 **Ticket Linking** | When replying to a closed ticket, creates a new linked ticket |
-| 🧵 **Thread-Index Support** | Microsoft Exchange `Thread-Index` header analysis for improved conversation tracking |
-| 📊 **Statistics Dashboard** | Visual dashboard with real-time stats on processed emails, duplicates blocked, and followups created |
-| 🛡️ **Domain Filtering** | Whitelist and Blacklist support to prioritize or ignore specific sender domains |
-| ⚕️ **Health Check** | Real-time connection and failure monitoring for all active GLPI Mail Collectors |
-| 🔔 **Smart Alerts** | Triggers native GLPI notifications when excessive duplicates are blocked |
-| ⏱️ **Auto Cleanup** | Native GLPI CronTask integration for scheduled background maintenance |
-| 🌍 **i18n Ready** | Fully translatable interface structured for PO/MO files (pt_BR included) |
-| 🛠️ **CLI Cleanup** | Console command for purging orphaned records and old statistics |
-
----
-
-## 📋 Requirements
-
-| Requirement | Version |
-|------------|---------|
-| GLPI | `>= 11.0.0` and `< 11.1` |
-| PHP | `>= 8.2` |
-| Database | MySQL 8.0+ / MariaDB 10.5+ |
-
----
-
-## 🚀 Installation
-
-1. Download the latest release
-2. Extract the `mailanalyzer` folder into your GLPI `plugins/` directory
-3. Navigate to **Configuration > Plugins** in GLPI
-4. Click **Install** then **Enable**
-
-```
-glpi/
-└── plugins/
-    └── mailanalyzer/
-        ├── front/
-        ├── inc/
-        ├── hook.php
-        ├── setup.php
-        └── logo.png
-```
-
----
-
-## ⚙️ Configuration
-
-Navigate to **Configuration > General > Mail Analyzer** tab.
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| **Use Thread-Index** | Enable Microsoft Exchange `Thread-Index` header support for improved conversation grouping |
-| **Whitelist Domains** | Domains that should bypass certain blocks (e.g., `@trust.com`) |
-| **Blacklist Domains** | Domains that are completely ignored (e.g., `@spam.com`) |
-
-### Statistics & Health Check
-
-The same configuration tab includes a **real-time statistics dashboard** showing:
-
-- 🚫 **Duplicates Blocked** — Emails already received that were rejected
-- 💬 **Followups Created** — Replies merged into existing tickets
-- 🔗 **Tickets Linked** — New tickets linked to closed ones
-- 🎫 **New Tickets** — Fresh tickets created from email
-
-Filter stats by **7 days**, **30 days**, **90 days**, or **all time**.
-
----
-
-## 🔧 How It Works / Como Funciona
-
-```mermaid
-flowchart TD
-    A[📨 Email arrives / E-mail chega] --> B{Message-ID in DB?}
-    B -->|Yes| C[🚫 Block duplicate / Bloquear duplicata]
-    B -->|No| D{References or Thread-Index match?}
-    D -->|Yes| E{Ticket still open?}
-    E -->|Yes| F[💬 Create followup / Criar acompanhamento]
-    E -->|No| G[🔗 Create linked ticket / Criar chamado vinculado]
-    D -->|No| H[🎫 Create new ticket / Criar novo chamado]
-```
-
-1. **Email arrives** via GLPI Mail Collector
-2. **Message-ID check** — If the email was already processed, it's blocked as duplicate
-3. **References/Thread-Index check** — Analyzes email headers to find related tickets
-4. **Smart routing** — Adds as followup (open ticket), creates linked ticket (closed), or creates new ticket
-
----
-
-## 🖥️ CLI Commands
-
-### Cleanup orphaned records
-
-```bash
-# Purge orphaned message_id records (tickets that no longer exist)
-php bin/console mailanalyzer:cleanup
-
-# Also purge stats older than 90 days / Também limpa estatísticas com mais de 90 dias
-php bin/console mailanalyzer:cleanup --stats-days=90
-
-# Dry run — see what would be deleted without making changes
-php bin/console mailanalyzer:cleanup --dry-run
-```
-
----
-
-## 📁 File Structure
-
-```
-mailanalyzer/
-├── front/
-│   ├── config.form.php         # Configuration page entry point
-│   └── stats.php               # Native AJAX endpoint for dashboard filters
-├── inc/
-│   ├── mailanalyzer.class.php  # Core email analysis logic
-│   ├── mailcollector.class.php # Extended mail collector with Thread-Index
-│   ├── config.class.php        # Configuration form & stats tab
-│   ├── stats.class.php         # Statistics tracking & dashboard
-│   ├── crontask.class.php      # Native GLPI Cron Task for housekeeping
-│   └── cleanupcommand.class.php # CLI cleanup command
-├── locales/
-│   └── pt_BR.po                # i18n Translation Dictionary (pt_BR)
-├── hook.php                    # Install/uninstall hooks
-├── setup.php                   # Plugin registration & hooks
-├── logo.png                    # Plugin icon
-├── mailanalyzer.xml            # Plugin metadata
-└── README.md
-```
-
----
-
-## 📄 License / Licença
-
-This plugin is licensed under the **GNU General Public License v2.0 or later**.
-
----
-
-## 👤 Authors / Autores
+## 👤 Authors / Авторы / Autores
 
 - **Olivier Moron** — Original author
-- **Kadosh** — GLPI 11 Compatibility & Enhancements
-- **Contributors** — See [GitHub contributors](https://github.com/tomolimo/mailanalyzer/graphs/contributors)
+- **Kadosh** — GLPI 11 compatibility
+- **v5.0.0 refactor** — services + Twig + ITIL features
 
 ---
 

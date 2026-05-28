@@ -1,0 +1,313 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MailAnalyzer 5.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-28 12:00+0000\n"
+"PO-Revision-Date: 2026-05-28 12:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Russian\n"
+"Language: ru_RU\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# === Plugin name / setup ===
+msgid "Mail Analyzer"
+msgstr "Анализатор почты"
+
+msgid "Mail Analyzer setup"
+msgstr "Настройка анализатора почты"
+
+msgid "MailAnalyzer"
+msgstr "Анализатор почты"
+
+# === Thread tracking ===
+msgid "Thread tracking"
+msgstr "Отслеживание цепочек"
+
+msgid "Use of Thread index"
+msgstr "Использовать Thread-Index"
+
+msgid "Enable Microsoft Exchange Thread-Index header support for improved conversation tracking"
+msgstr "Включить поддержку заголовка Thread-Index Microsoft Exchange для улучшенного отслеживания цепочек переписки"
+
+# === Domain filters ===
+msgid "Domain filters"
+msgstr "Фильтры доменов"
+
+msgid "Whitelist Domains"
+msgstr "Белый список доменов"
+
+msgid "Never block emails from these domains (one per line, e.g., @important.com)"
+msgstr "Никогда не блокировать письма с этих доменов (по одному в строке, например @important.com)"
+
+msgid "Blacklist Domains"
+msgstr "Чёрный список доменов"
+
+msgid "Always block emails from these domains (one per line, e.g., @spam.com)"
+msgstr "Всегда блокировать письма с этих доменов (по одному в строке, например @spam.com)"
+
+msgid "VIP senders"
+msgstr "VIP-отправители"
+
+msgid "VIP senders bypass subject-hash dedup and get max urgency. One entry per line — full address or @domain."
+msgstr "Письма от VIP-отправителей не блокируются дополнительной защитой по хэшу темы и получают максимальную срочность. По одной записи в строке — полный адрес или @домен."
+
+# === Smart classification ===
+msgid "Smart classification (ITIL)"
+msgstr "Умная классификация (ITIL)"
+
+msgid "Enable smart classification"
+msgstr "Включить умную классификацию"
+
+msgid "Detect Incident vs Service Request from keywords in subject/body"
+msgstr "Определять тип заявки (Инцидент / Запрос на обслуживание) по ключевым словам в теме/теле"
+
+msgid "Incident keywords"
+msgstr "Ключевые слова для инцидентов"
+
+msgid "One keyword per line; case-insensitive substring match"
+msgstr "По одному ключевому слову в строке; поиск подстроки без учёта регистра"
+
+msgid "Service Request keywords"
+msgstr "Ключевые слова для запросов на обслуживание"
+
+msgid "High-urgency keywords"
+msgstr "Ключевые слова повышенной срочности"
+
+msgid "If any of these appear in subject/body, urgency is raised to Very High (5)"
+msgstr "При совпадении любого слова в теме/теле срочность поднимается до «Очень высокая» (5)"
+
+msgid "Default ticket type if no keyword matches"
+msgstr "Тип заявки по умолчанию (если ни одно правило не сработало)"
+
+msgid "Do not change"
+msgstr "Не менять"
+
+msgid "Incident"
+msgstr "Инцидент"
+
+msgid "Service Request"
+msgstr "Запрос на обслуживание"
+
+# === Smart duplicate detection ===
+msgid "Smart duplicate detection"
+msgstr "Умное обнаружение дубликатов"
+
+msgid "Enable subject-hash deduplication"
+msgstr "Включить дедупликацию по хэшу темы"
+
+msgid "Fallback dedup when Message-ID is empty or rotated. SHA1(normalized subject + sender) within a recent time window."
+msgstr "Резервная дедупликация если Message-ID пуст или меняется. SHA1(нормализованная тема + отправитель) в недавнем временном окне."
+
+msgid "Subject-hash dedup window (minutes)"
+msgstr "Окно дедупликации по теме (минут)"
+
+# === Alerts ===
+msgid "Alerts"
+msgstr "Уведомления"
+
+msgid "Duplicate-storm threshold"
+msgstr "Порог «шторма дубликатов»"
+
+msgid "Raise a NotificationEvent every N duplicates blocked within the window"
+msgstr "Создавать NotificationEvent каждые N заблокированных дубликатов внутри окна"
+
+msgid "Duplicate-storm window (seconds)"
+msgstr "Окно «шторма дубликатов» (секунды)"
+
+msgid "High volume of blocked duplicates"
+msgstr "Большое количество заблокированных дубликатов"
+
+# === How it works ===
+msgid "How it works"
+msgstr "Как это работает"
+
+msgid "This plugin analyzes email headers (Message-ID, References, Thread-Index) to automatically combine related emails into the same ticket, preventing duplicates when CC recipients use \"Reply to All\"."
+msgstr "Плагин анализирует заголовки писем (Message-ID, References, Thread-Index) и автоматически объединяет связанные письма в одну заявку, предотвращая дубликаты, когда получатели в копии используют «Ответить всем»."
+
+# === Dashboard cards ===
+msgid "Mail Analyzer Statistics"
+msgstr "Статистика анализатора почты"
+
+msgid "Duplicates Blocked"
+msgstr "Заблокировано дубликатов"
+
+msgid "Followups Created"
+msgstr "Создано комментариев"
+
+msgid "Tickets Linked"
+msgstr "Связано заявок"
+
+msgid "New Tickets"
+msgstr "Новых заявок"
+
+msgid "Blacklist Rejected"
+msgstr "Отклонено чёрным списком"
+
+msgid "Total emails processed"
+msgstr "Всего обработано писем"
+
+# === Period filter ===
+msgid "Period"
+msgstr "Период"
+
+msgid "Last 7 days"
+msgstr "Последние 7 дней"
+
+msgid "Last 30 days"
+msgstr "Последние 30 дней"
+
+msgid "Last 90 days"
+msgstr "Последние 90 дней"
+
+msgid "All time"
+msgstr "За всё время"
+
+msgid "Filter Statistics"
+msgstr "Фильтр статистики"
+
+msgid "Export CSV"
+msgstr "Экспорт в CSV"
+
+# === Activity log ===
+msgid "Recent Activity"
+msgstr "Недавняя активность"
+
+msgid "Date"
+msgstr "Дата"
+
+msgid "Action"
+msgstr "Действие"
+
+msgid "Ticket"
+msgstr "Заявка"
+
+msgid "Mail Collector"
+msgstr "Сборщик почты"
+
+msgid "Message ID"
+msgstr "ID сообщения"
+
+msgid "From"
+msgstr "От"
+
+msgid "Subject"
+msgstr "Тема"
+
+msgid "Reason"
+msgstr "Причина"
+
+msgid "Duplicate Blocked"
+msgstr "Дубликат заблокирован"
+
+msgid "Followup Created"
+msgstr "Создан комментарий"
+
+msgid "Ticket Linked"
+msgstr "Создана связанная заявка"
+
+msgid "New Ticket"
+msgstr "Новая заявка"
+
+msgid "deleted"
+msgstr "удалена"
+
+# === Health check ===
+msgid "Mail Collectors Health Check"
+msgstr "Состояние сборщиков почты"
+
+msgid "Collector Name"
+msgstr "Имя сборщика"
+
+msgid "Active"
+msgstr "Активен"
+
+msgid "Connection Status"
+msgstr "Статус соединения"
+
+msgid "Last Email Processed (Analyzer)"
+msgstr "Последнее обработанное письмо"
+
+msgid "Errors Count"
+msgstr "Кол-во ошибок"
+
+msgid "No active mail collectors found."
+msgstr "Активные сборщики почты не найдены."
+
+msgid "Failing"
+msgstr "Сбой"
+
+msgid "OK"
+msgstr "ОК"
+
+msgid "Never"
+msgstr "Никогда"
+
+# === Misc ===
+msgid "Unsupported mail server type:%s."
+msgstr "Неподдерживаемый тип почтового сервера: %s."
+
+msgid "Cleanup orphan entries and old statistics"
+msgstr "Очистка осиротевших записей и старой статистики"
+
+msgid "Days to keep statistics (0 = infinite)"
+msgstr "Сколько дней хранить статистику (0 — бесконечно)"
+
+# === SPF / DKIM / DMARC ===
+msgid "Sender authentication (SPF / DKIM / DMARC)"
+msgstr "Аутентификация отправителя (SPF / DKIM / DMARC)"
+
+msgid "Enable authentication checks"
+msgstr "Включить проверку аутентификации"
+
+msgid "Reads RFC 8601 Authentication-Results header set by the upstream mail server. No DNS lookups are made by the plugin."
+msgstr "Читает заголовок Authentication-Results (RFC 8601), который выставляет вышестоящий почтовый сервер. Плагин не делает запросов в DNS."
+
+msgid "Reject on SPF fail"
+msgstr "Отклонять при провале SPF"
+
+msgid "Reject on DKIM fail"
+msgstr "Отклонять при провале DKIM"
+
+msgid "Reject on DMARC fail"
+msgstr "Отклонять при провале DMARC"
+
+msgid "Auth Failed"
+msgstr "Провал аутентификации"
+
+# === Attachment dedup ===
+msgid "Attachment deduplication"
+msgstr "Дедупликация вложений"
+
+msgid "Dedup attachments by SHA-256"
+msgstr "Дедуп вложений по SHA-256"
+
+msgid "Skip duplicate attachments (same SHA-256 content) on the same ticket. Useful for repeated signature/banner images on long threads."
+msgstr "Пропускать повторные вложения (одинаковое содержимое по SHA-256) в одной заявке. Полезно при повторяющихся изображениях подписи/баннера в длинных переписках."
+
+msgid "Attachment Deduped"
+msgstr "Вложение дедуплицировано"
+
+# === Search Options / Menu ===
+msgid "Audit log"
+msgstr "Журнал аудита"
+
+msgid "Mail Analyzer audit entry"
+msgid_plural "Mail Analyzer audit entries"
+msgstr[0] "Запись аудита Анализатора почты"
+msgstr[1] "Записи аудита Анализатора почты"
+msgstr[2] "Записей аудита Анализатора почты"
+
+msgid "Message-ID record"
+msgid_plural "Message-ID records"
+msgstr[0] "Запись Message-ID"
+msgstr[1] "Записи Message-ID"
+msgstr[2] "Записей Message-ID"
+
+msgid "Message-IDs"
+msgstr "Message-ID"
+
+msgid "Subject hash"
+msgstr "Хэш темы"

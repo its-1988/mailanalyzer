@@ -1,0 +1,57 @@
+{#
+ # MailAnalyzer plugin for GLPI — Mail collector health-check.
+ # GPLv2+
+ #}
+
+<div class="card mb-3">
+   <div class="card-header">
+      <i class="fas fa-heartbeat me-1"></i> {{ __('Mail Collectors Health Check', 'mailanalyzer') }}
+   </div>
+   <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+         <thead class="table-light">
+            <tr>
+               <th>{{ __('Collector Name', 'mailanalyzer') }}</th>
+               <th>{{ __('Active', 'mailanalyzer') }}</th>
+               <th>{{ __('Connection Status', 'mailanalyzer') }}</th>
+               <th>{{ __('Last Email Processed (Analyzer)', 'mailanalyzer') }}</th>
+               <th>{{ __('Errors Count', 'mailanalyzer') }}</th>
+            </tr>
+         </thead>
+         <tbody>
+            {% if collectors|length == 0 %}
+               <tr>
+                  <td colspan="5" class="text-center text-muted">
+                     {{ __('No active mail collectors found.', 'mailanalyzer') }}
+                  </td>
+               </tr>
+            {% endif %}
+            {% for c in collectors %}
+               <tr>
+                  <td><i class="fas fa-inbox me-1"></i> {{ c.name }}</td>
+                  <td>
+                     {% if c.is_active %}
+                        <span class="badge bg-success">{{ __('Yes') }}</span>
+                     {% else %}
+                        <span class="badge bg-secondary">{{ __('No') }}</span>
+                     {% endif %}
+                  </td>
+                  <td>
+                     {% if c.errors > 0 %}
+                        <span class="badge bg-danger">
+                           <i class="fas fa-exclamation-triangle"></i> {{ __('Failing', 'mailanalyzer') }}
+                        </span>
+                     {% else %}
+                        <span class="badge bg-success">
+                           <i class="fas fa-check-circle"></i> {{ __('OK', 'mailanalyzer') }}
+                        </span>
+                     {% endif %}
+                  </td>
+                  <td><small>{{ c.last_date|raw }}</small></td>
+                  <td>{{ c.errors }}</td>
+               </tr>
+            {% endfor %}
+         </tbody>
+      </table>
+   </div>
+</div>

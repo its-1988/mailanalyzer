@@ -1,19 +1,25 @@
 <?php
 /*
 -------------------------------------------------------------------------
-MailAnalyzer plugin for GLPI
-Copyright (C) 2011-2025 by Raynet SAS a company of A.Raymond Network.
--------------------------------------------------------------------------
+MailAnalyzer plugin for GLPI — POST endpoint for dashboard period filter.
+GPLv2+
+--------------------------------------------------------------------------
  */
 
-// Este arquivo intercepta apenas requisições POST para trocar filtros da aba sem perder contexto
-
-include ("../../../inc/includes.php");
+if (!defined('GLPI_ROOT')) {
+    require_once __DIR__ . '/../../../inc/includes.php';
+}
 
 Session::checkLoginUser();
+Session::checkRight('config', READ);
 
-if (isset($_POST["filter_stats"])) {
-    $_SESSION['plugin_mailanalyzer_stats_period'] = $_POST['period'];
+if (isset($_POST['filter_stats'])) {
+    Session::checkCSRF($_POST);
+    $allowed = ['7days', '30days', '90days', 'all'];
+    $period  = $_POST['period'] ?? '30days';
+    if (in_array($period, $allowed, true)) {
+        $_SESSION['plugin_mailanalyzer_stats_period'] = $period;
+    }
 }
 
 Html::back();

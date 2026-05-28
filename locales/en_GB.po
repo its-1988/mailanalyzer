@@ -1,0 +1,311 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MailAnalyzer 5.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-28 12:00+0000\n"
+"PO-Revision-Date: 2026-05-28 12:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: English (United Kingdom)\n"
+"Language: en_GB\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# === Plugin name / setup ===
+msgid "Mail Analyzer"
+msgstr "Mail Analyser"
+
+msgid "Mail Analyzer setup"
+msgstr "Mail Analyser setup"
+
+msgid "MailAnalyzer"
+msgstr "MailAnalyser"
+
+# === Thread tracking ===
+msgid "Thread tracking"
+msgstr "Thread tracking"
+
+msgid "Use of Thread index"
+msgstr "Use of Thread index"
+
+msgid "Enable Microsoft Exchange Thread-Index header support for improved conversation tracking"
+msgstr "Enable Microsoft Exchange Thread-Index header support for improved conversation tracking"
+
+# === Domain filters ===
+msgid "Domain filters"
+msgstr "Domain filters"
+
+msgid "Whitelist Domains"
+msgstr "Allowlist Domains"
+
+msgid "Never block emails from these domains (one per line, e.g., @important.com)"
+msgstr "Never block emails from these domains (one per line, e.g., @important.com)"
+
+msgid "Blacklist Domains"
+msgstr "Blocklist Domains"
+
+msgid "Always block emails from these domains (one per line, e.g., @spam.com)"
+msgstr "Always block emails from these domains (one per line, e.g., @spam.com)"
+
+msgid "VIP senders"
+msgstr "VIP senders"
+
+msgid "VIP senders bypass subject-hash dedup and get max urgency. One entry per line — full address or @domain."
+msgstr "VIP senders bypass subject-hash dedup and get max urgency. One entry per line — full address or @domain."
+
+# === Smart classification ===
+msgid "Smart classification (ITIL)"
+msgstr "Smart classification (ITIL)"
+
+msgid "Enable smart classification"
+msgstr "Enable smart classification"
+
+msgid "Detect Incident vs Service Request from keywords in subject/body"
+msgstr "Detect Incident vs Service Request from keywords in subject/body"
+
+msgid "Incident keywords"
+msgstr "Incident keywords"
+
+msgid "One keyword per line; case-insensitive substring match"
+msgstr "One keyword per line; case-insensitive substring match"
+
+msgid "Service Request keywords"
+msgstr "Service Request keywords"
+
+msgid "High-urgency keywords"
+msgstr "High-urgency keywords"
+
+msgid "If any of these appear in subject/body, urgency is raised to Very High (5)"
+msgstr "If any of these appear in subject/body, urgency is raised to Very High (5)"
+
+msgid "Default ticket type if no keyword matches"
+msgstr "Default ticket type if no keyword matches"
+
+msgid "Do not change"
+msgstr "Do not change"
+
+msgid "Incident"
+msgstr "Incident"
+
+msgid "Service Request"
+msgstr "Service Request"
+
+# === Smart duplicate detection ===
+msgid "Smart duplicate detection"
+msgstr "Smart duplicate detection"
+
+msgid "Enable subject-hash deduplication"
+msgstr "Enable subject-hash deduplication"
+
+msgid "Fallback dedup when Message-ID is empty or rotated. SHA1(normalized subject + sender) within a recent time window."
+msgstr "Fallback dedup when Message-ID is empty or rotated. SHA1(normalised subject + sender) within a recent time window."
+
+msgid "Subject-hash dedup window (minutes)"
+msgstr "Subject-hash dedup window (minutes)"
+
+# === Alerts ===
+msgid "Alerts"
+msgstr "Alerts"
+
+msgid "Duplicate-storm threshold"
+msgstr "Duplicate-storm threshold"
+
+msgid "Raise a NotificationEvent every N duplicates blocked within the window"
+msgstr "Raise a NotificationEvent every N duplicates blocked within the window"
+
+msgid "Duplicate-storm window (seconds)"
+msgstr "Duplicate-storm window (seconds)"
+
+msgid "High volume of blocked duplicates"
+msgstr "High volume of blocked duplicates"
+
+# === How it works ===
+msgid "How it works"
+msgstr "How it works"
+
+msgid "This plugin analyzes email headers (Message-ID, References, Thread-Index) to automatically combine related emails into the same ticket, preventing duplicates when CC recipients use \"Reply to All\"."
+msgstr "This plugin analyses email headers (Message-ID, References, Thread-Index) to automatically combine related emails into the same ticket, preventing duplicates when CC recipients use \"Reply to All\"."
+
+# === Dashboard cards ===
+msgid "Mail Analyzer Statistics"
+msgstr "Mail Analyser Statistics"
+
+msgid "Duplicates Blocked"
+msgstr "Duplicates Blocked"
+
+msgid "Followups Created"
+msgstr "Follow-ups Created"
+
+msgid "Tickets Linked"
+msgstr "Tickets Linked"
+
+msgid "New Tickets"
+msgstr "New Tickets"
+
+msgid "Blacklist Rejected"
+msgstr "Blocklist Rejected"
+
+msgid "Total emails processed"
+msgstr "Total emails processed"
+
+# === Period filter ===
+msgid "Period"
+msgstr "Period"
+
+msgid "Last 7 days"
+msgstr "Last 7 days"
+
+msgid "Last 30 days"
+msgstr "Last 30 days"
+
+msgid "Last 90 days"
+msgstr "Last 90 days"
+
+msgid "All time"
+msgstr "All time"
+
+msgid "Filter Statistics"
+msgstr "Filter Statistics"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+# === Activity log ===
+msgid "Recent Activity"
+msgstr "Recent Activity"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Ticket"
+msgstr "Ticket"
+
+msgid "Mail Collector"
+msgstr "Mail Collector"
+
+msgid "Message ID"
+msgstr "Message ID"
+
+msgid "From"
+msgstr "From"
+
+msgid "Subject"
+msgstr "Subject"
+
+msgid "Reason"
+msgstr "Reason"
+
+msgid "Duplicate Blocked"
+msgstr "Duplicate Blocked"
+
+msgid "Followup Created"
+msgstr "Follow-up Created"
+
+msgid "Ticket Linked"
+msgstr "Ticket Linked"
+
+msgid "New Ticket"
+msgstr "New Ticket"
+
+msgid "deleted"
+msgstr "deleted"
+
+# === Health check ===
+msgid "Mail Collectors Health Check"
+msgstr "Mail Collectors Health Check"
+
+msgid "Collector Name"
+msgstr "Collector Name"
+
+msgid "Active"
+msgstr "Active"
+
+msgid "Connection Status"
+msgstr "Connection Status"
+
+msgid "Last Email Processed (Analyzer)"
+msgstr "Last Email Processed (Analyser)"
+
+msgid "Errors Count"
+msgstr "Errors Count"
+
+msgid "No active mail collectors found."
+msgstr "No active mail collectors found."
+
+msgid "Failing"
+msgstr "Failing"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Never"
+msgstr "Never"
+
+# === Misc ===
+msgid "Unsupported mail server type:%s."
+msgstr "Unsupported mail server type: %s."
+
+msgid "Cleanup orphan entries and old statistics"
+msgstr "Clean up orphan entries and old statistics"
+
+msgid "Days to keep statistics (0 = infinite)"
+msgstr "Days to keep statistics (0 = infinite)"
+
+# === SPF / DKIM / DMARC ===
+msgid "Sender authentication (SPF / DKIM / DMARC)"
+msgstr "Sender authentication (SPF / DKIM / DMARC)"
+
+msgid "Enable authentication checks"
+msgstr "Enable authentication checks"
+
+msgid "Reads RFC 8601 Authentication-Results header set by the upstream mail server. No DNS lookups are made by the plugin."
+msgstr "Reads RFC 8601 Authentication-Results header set by the upstream mail server. No DNS lookups are made by the plugin."
+
+msgid "Reject on SPF fail"
+msgstr "Reject on SPF fail"
+
+msgid "Reject on DKIM fail"
+msgstr "Reject on DKIM fail"
+
+msgid "Reject on DMARC fail"
+msgstr "Reject on DMARC fail"
+
+msgid "Auth Failed"
+msgstr "Auth Failed"
+
+# === Attachment dedup ===
+msgid "Attachment deduplication"
+msgstr "Attachment deduplication"
+
+msgid "Dedup attachments by SHA-256"
+msgstr "Dedup attachments by SHA-256"
+
+msgid "Skip duplicate attachments (same SHA-256 content) on the same ticket. Useful for repeated signature/banner images on long threads."
+msgstr "Skip duplicate attachments (same SHA-256 content) on the same ticket. Useful for repeated signature/banner images on long threads."
+
+msgid "Attachment Deduped"
+msgstr "Attachment Deduped"
+
+# === Search Options / Menu ===
+msgid "Audit log"
+msgstr "Audit log"
+
+msgid "Mail Analyzer audit entry"
+msgid_plural "Mail Analyzer audit entries"
+msgstr[0] "Mail Analyser audit entry"
+msgstr[1] "Mail Analyser audit entries"
+
+msgid "Message-ID record"
+msgid_plural "Message-ID records"
+msgstr[0] "Message-ID record"
+msgstr[1] "Message-ID records"
+
+msgid "Message-IDs"
+msgstr "Message-IDs"
+
+msgid "Subject hash"
+msgstr "Subject hash"

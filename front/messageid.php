@@ -1,7 +1,7 @@
 <?php
 /*
 -------------------------------------------------------------------------
-MailAnalyzer plugin for GLPI — Redirects to the Config tab.
+MailAnalyzer plugin for GLPI — Message-ID search page.
 GPLv2+
 --------------------------------------------------------------------------
  */
@@ -10,8 +10,16 @@ if (!defined('GLPI_ROOT')) {
     require_once __DIR__ . '/../../../inc/includes.php';
 }
 
-global $CFG_GLPI;
-
+Session::checkLoginUser();
 Session::checkRight('config', READ);
-Session::setActiveTab('Config', 'PluginMailanalyzerConfig$1');
-Html::redirect($CFG_GLPI['root_doc'] . '/front/config.form.php');
+
+Html::header(
+    PluginMailanalyzerMessageId::getTypeName(2),
+    $_SERVER['PHP_SELF'],
+    'config',
+    PluginMailanalyzerConfig::class
+);
+
+Search::show(PluginMailanalyzerMessageId::class);
+
+Html::footer();
