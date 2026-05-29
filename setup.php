@@ -43,14 +43,14 @@ function plugin_init_mailanalyzer(): void
 
     // Lifecycle hooks on Ticket + Document_Item
     $PLUGIN_HOOKS['pre_item_add']['mailanalyzer'] = [
-        'Ticket'        => ['PluginMailAnalyzer', 'plugin_pre_item_add_mailanalyzer'],
+        'Ticket'        => ['PluginMailanalyzerCore', 'plugin_pre_item_add_mailanalyzer'],
         'Document_Item' => ['PluginMailanalyzerAttachmentDedup', 'plugin_pre_item_add'],
     ];
     $PLUGIN_HOOKS['item_add']['mailanalyzer'] = [
-        'Ticket' => ['PluginMailAnalyzer', 'plugin_item_add_mailanalyzer'],
+        'Ticket' => ['PluginMailanalyzerCore', 'plugin_item_add_mailanalyzer'],
     ];
     $PLUGIN_HOOKS['item_purge']['mailanalyzer'] = [
-        'Ticket' => ['PluginMailAnalyzer', 'plugin_item_purge_mailanalyzer'],
+        'Ticket' => ['PluginMailanalyzerCore', 'plugin_item_purge_mailanalyzer'],
     ];
 
     // Native cron task
