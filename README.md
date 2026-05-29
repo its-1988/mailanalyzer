@@ -27,31 +27,31 @@ Combines related emails into one ticket, blocks duplicates, classifies Incident 
 
 ### ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔁 **Duplicate detection** | Blocks duplicate tickets by `Message-ID` and (fallback) by SHA-1 of normalised subject within a configurable window |
-| 💬 **Auto follow-up** | Replies to open tickets become `ITILFollowup` entries with `add_reopen=1` |
-| 🔗 **Ticket linking** | Replies to closed tickets create a new ticket linked to the original |
-| 🧵 **Thread-Index** | Microsoft Exchange `Thread-Index` header parsing for richer conversation matching |
+| Feature                          | Description                                                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 🔁 **Duplicate detection**       | Blocks duplicate tickets by `Message-ID` and (fallback) by SHA-1 of normalised subject within a configurable window                |
+| 💬 **Auto follow-up**            | Replies to open tickets become `ITILFollowup` entries with `add_reopen=1`                                                          |
+| 🔗 **Ticket linking**            | Replies to closed tickets create a new ticket linked to the original                                                               |
+| 🧵 **Thread-Index**              | Microsoft Exchange `Thread-Index` header parsing for richer conversation matching                                                  |
 | 🎯 **Smart ITIL classification** | Detects Incident vs Service Request from configurable keyword dictionaries; applied to `Ticket::$input` before business rules fire |
-| ⭐ **VIP escalation** | Listed senders / domains get maximum urgency and bypass subject-hash dedup |
-| 🛡️ **SPF / DKIM / DMARC** | Reads RFC 8601 `Authentication-Results` set by the upstream MTA and rejects failed messages (policy is per-check) |
-| 📎 **Attachment dedup** | Skips identical attachments on the same ticket by SHA-256 — saves storage on long signature-heavy threads |
-| 🚦 **Domain filters** | Whitelist / blacklist / VIP lists, one entry per line, full address or `@domain` |
-| 🔔 **Smart alerts** | Native GLPI `NotificationEvent` raised when N duplicates are blocked within a window (both configurable) |
-| 📊 **Dashboard** | Twig-rendered statistics with period filter, recent activity, decision reasoning |
-| 📋 **Full audit log** | Every decision stored with `from_email`, `subject`, `subject_hash`, `decision_reason` — searchable via GLPI Search Engine |
-| 📤 **CSV export** | UTF-8 + BOM (Excel-friendly), respects the dashboard period filter |
-| ⏱️ **Auto cleanup** | Native GLPI CronTask trims orphans and old stats daily |
-| 🛠️ **CLI cleanup** | `php bin/console mailanalyzer:cleanup` with `--dry-run`, `--stats-days=N` |
-| 🌍 **i18n** | `en_GB`, `ru_RU`, `pt_BR` shipped |
+| ⭐ **VIP escalation**             | Listed senders / domains get maximum urgency and bypass subject-hash dedup                                                         |
+| 🛡️ **SPF / DKIM / DMARC**       | Reads RFC 8601 `Authentication-Results` set by the upstream MTA and rejects failed messages (policy is per-check)                  |
+| 📎 **Attachment dedup**          | Skips identical attachments on the same ticket by SHA-256 — saves storage on long signature-heavy threads                          |
+| 🚦 **Domain filters**            | Whitelist / blacklist / VIP lists, one entry per line, full address or `@domain`                                                   |
+| 🔔 **Smart alerts**              | Native GLPI `NotificationEvent` raised when N duplicates are blocked within a window (both configurable)                           |
+| 📊 **Dashboard**                 | Twig-rendered statistics with period filter, recent activity, decision reasoning                                                   |
+| 📋 **Full audit log**            | Every decision stored with `from_email`, `subject`, `subject_hash`, `decision_reason` — searchable via GLPI Search Engine          |
+| 📤 **CSV export**                | UTF-8 + BOM (Excel-friendly), respects the dashboard period filter                                                                 |
+| ⏱️ **Auto cleanup**              | Native GLPI CronTask trims orphans and old stats daily                                                                             |
+| 🛠️ **CLI cleanup**              | `php bin/console mailanalyzer:cleanup` with `--dry-run`, `--stats-days=N`                                                          |
+| 🌍 **i18n**                      | `en_GB`, `ru_RU`, `pt_BR` shipped                                                                                                  |
 
 ### 📋 Requirements
 
-| Requirement | Version |
-|-------------|---------|
-| GLPI        | `>= 11.0.0` and `< 11.1` |
-| PHP         | `>= 8.2` |
+| Requirement | Version                    |
+| ----------- | -------------------------- |
+| GLPI        | `>= 11.0.0` and `< 11.1`   |
+| PHP         | `>= 8.2`                   |
 | Database    | MySQL 8.0+ / MariaDB 10.5+ |
 
 ### 🚀 Installation
@@ -117,7 +117,7 @@ mailanalyzer/
 │   ├── auditlog.php              # GLPI Search view (audit log)
 │   └── messageid.php             # GLPI Search view (message-id table)
 ├── inc/
-│   ├── mailanalyzer.class.php    # Thin orchestrator (hooks → services)
+│   ├── core.class.php            # Thin orchestrator (hooks → services)
 │   ├── installer.class.php       # DB schema (clean GLPI 11)
 │   ├── domainfilter.class.php    # Whitelist / blacklist / VIP
 │   ├── threadresolver.class.php  # Message-ID / Thread-Index / References / subject-hash
@@ -150,11 +150,11 @@ mailanalyzer/
 
 ### 🗄️ Database tables
 
-| Table | Purpose |
-|-------|---------|
-| `glpi_plugin_mailanalyzer_message_id` | `(message_id, mailcollectors_id) → tickets_id` plus `subject_hash`, `date_created` for fallback dedup |
-| `glpi_plugin_mailanalyzer_stats` | Full audit log: `action_type`, `tickets_id`, `from_email`, `subject`, `subject_hash`, `decision_reason`, `date_created` |
-| `glpi_plugin_mailanalyzer_attachments` | `(tickets_id, sha256) → documents_id` for attachment dedup |
+| Table                                  | Purpose                                                                                                                 |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `glpi_plugin_mailanalyzer_message_id`  | `(message_id, mailcollectors_id) → tickets_id` plus `subject_hash`, `date_created` for fallback dedup                   |
+| `glpi_plugin_mailanalyzer_stats`       | Full audit log: `action_type`, `tickets_id`, `from_email`, `subject`, `subject_hash`, `decision_reason`, `date_created` |
+| `glpi_plugin_mailanalyzer_attachments` | `(tickets_id, sha256) → documents_id` for attachment dedup                                                              |
 
 ---
 
@@ -166,31 +166,31 @@ mailanalyzer/
 
 ### ✨ Возможности
 
-| Функция | Описание |
-|---------|----------|
-| 🔁 **Обнаружение дубликатов** | По `Message-ID` и резервно по SHA-1 нормализованной темы в настраиваемом окне |
-| 💬 **Авто-комментарии** | Ответы на открытые заявки добавляются как `ITILFollowup` с `add_reopen=1` |
-| 🔗 **Связанные заявки** | Ответы на закрытые заявки создают новую заявку, связанную с исходной |
-| 🧵 **Thread-Index** | Разбор заголовка `Thread-Index` Microsoft Exchange для точного отслеживания цепочек |
-| 🎯 **ITIL-классификация** | Определение типа (Инцидент / Запрос на обслуживание) по словарям ключевых слов |
-| ⭐ **VIP-эскалация** | Отправители/домены в списке VIP получают максимальную срочность |
-| 🛡️ **SPF / DKIM / DMARC** | Читает `Authentication-Results` от вышестоящего MTA, политика отказа настраивается по каждой проверке |
-| 📎 **Дедуп вложений** | Пропускает одинаковые вложения в одной заявке по SHA-256 |
-| 🚦 **Фильтры доменов** | Whitelist / Blacklist / VIP — по одной записи в строке, полный адрес или `@домен` |
-| 🔔 **Умные алерты** | Нативный GLPI `NotificationEvent` при «шторме дубликатов» (порог + окно настраиваются) |
-| 📊 **Дашборд** | Twig + Bootstrap 5: статистика, недавняя активность, обоснования решений |
-| 📋 **Полный аудит-лог** | Каждое решение с `from_email`, `subject`, `subject_hash`, `decision_reason` — ищется через GLPI Search |
-| 📤 **Экспорт CSV** | UTF-8 + BOM (открывается в Excel без проблем), фильтр по периоду |
-| ⏱️ **Авточистка** | Нативный GLPI CronTask убирает осиротевшие записи и старую статистику |
-| 🛠️ **CLI-очистка** | `php bin/console mailanalyzer:cleanup` с `--dry-run`, `--stats-days=N` |
-| 🌍 **i18n** | В комплекте `ru_RU`, `en_GB`, `pt_BR` |
+| Функция                       | Описание                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 🔁 **Обнаружение дубликатов** | По `Message-ID` и резервно по SHA-1 нормализованной темы в настраиваемом окне                          |
+| 💬 **Авто-комментарии**       | Ответы на открытые заявки добавляются как `ITILFollowup` с `add_reopen=1`                              |
+| 🔗 **Связанные заявки**       | Ответы на закрытые заявки создают новую заявку, связанную с исходной                                   |
+| 🧵 **Thread-Index**           | Разбор заголовка `Thread-Index` Microsoft Exchange для точного отслеживания цепочек                    |
+| 🎯 **ITIL-классификация**     | Определение типа (Инцидент / Запрос на обслуживание) по словарям ключевых слов                         |
+| ⭐ **VIP-эскалация**           | Отправители/домены в списке VIP получают максимальную срочность                                        |
+| 🛡️ **SPF / DKIM / DMARC**    | Читает `Authentication-Results` от вышестоящего MTA, политика отказа настраивается по каждой проверке  |
+| 📎 **Дедуп вложений**         | Пропускает одинаковые вложения в одной заявке по SHA-256                                               |
+| 🚦 **Фильтры доменов**        | Whitelist / Blacklist / VIP — по одной записи в строке, полный адрес или `@домен`                      |
+| 🔔 **Умные алерты**           | Нативный GLPI `NotificationEvent` при «шторме дубликатов» (порог + окно настраиваются)                 |
+| 📊 **Дашборд**                | Twig + Bootstrap 5: статистика, недавняя активность, обоснования решений                               |
+| 📋 **Полный аудит-лог**       | Каждое решение с `from_email`, `subject`, `subject_hash`, `decision_reason` — ищется через GLPI Search |
+| 📤 **Экспорт CSV**            | UTF-8 + BOM (открывается в Excel без проблем), фильтр по периоду                                       |
+| ⏱️ **Авточистка**             | Нативный GLPI CronTask убирает осиротевшие записи и старую статистику                                  |
+| 🛠️ **CLI-очистка**           | `php bin/console mailanalyzer:cleanup` с `--dry-run`, `--stats-days=N`                                 |
+| 🌍 **i18n**                   | В комплекте `ru_RU`, `en_GB`, `pt_BR`                                                                  |
 
 ### 📋 Требования
 
-| Требование | Версия |
-|------------|--------|
-| GLPI       | `>= 11.0.0` и `< 11.1` |
-| PHP        | `>= 8.2` |
+| Требование | Версия                     |
+| ---------- | -------------------------- |
+| GLPI       | `>= 11.0.0` и `< 11.1`     |
+| PHP        | `>= 8.2`                   |
 | СУБД       | MySQL 8.0+ / MariaDB 10.5+ |
 
 ### 🚀 Установка
@@ -251,25 +251,25 @@ Combina e-mails relacionados em um único chamado, evita duplicatas, classifica 
 
 ### ✨ Funcionalidades
 
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| 🔁 **Detecção de Duplicatas** | Bloqueia chamados duplicados pelo `Message-ID` e (fallback) por hash da assunto |
-| 💬 **Acompanhamento Automático** | Respostas a chamados existentes viram acompanhamentos |
-| 🔗 **Vinculação de Chamados** | Resposta a um chamado fechado cria novo chamado vinculado |
-| 🧵 **Suporte a Thread-Index** | Análise do cabeçalho `Thread-Index` do Microsoft Exchange |
-| 🎯 **Classificação ITIL** | Detecta Incidente vs Requisição por palavras-chave |
-| ⭐ **Escalada VIP** | Remetentes/domínios VIP recebem urgência máxima |
-| 🛡️ **SPF / DKIM / DMARC** | Valida o cabeçalho `Authentication-Results` |
-| 📎 **Dedup de Anexos** | Pula anexos idênticos (SHA-256) no mesmo chamado |
-| 📋 **Auditoria completa** | Cada decisão registrada com motivo legível |
-| 📤 **Exportação CSV** | UTF-8 + BOM, respeita o filtro de período |
+| Funcionalidade                   | Descrição                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| 🔁 **Detecção de Duplicatas**    | Bloqueia chamados duplicados pelo `Message-ID` e (fallback) por hash da assunto |
+| 💬 **Acompanhamento Automático** | Respostas a chamados existentes viram acompanhamentos                           |
+| 🔗 **Vinculação de Chamados**    | Resposta a um chamado fechado cria novo chamado vinculado                       |
+| 🧵 **Suporte a Thread-Index**    | Análise do cabeçalho `Thread-Index` do Microsoft Exchange                       |
+| 🎯 **Classificação ITIL**        | Detecta Incidente vs Requisição por palavras-chave                              |
+| ⭐ **Escalada VIP**               | Remetentes/domínios VIP recebem urgência máxima                                 |
+| 🛡️ **SPF / DKIM / DMARC**       | Valida o cabeçalho `Authentication-Results`                                     |
+| 📎 **Dedup de Anexos**           | Pula anexos idênticos (SHA-256) no mesmo chamado                                |
+| 📋 **Auditoria completa**        | Cada decisão registrada com motivo legível                                      |
+| 📤 **Exportação CSV**            | UTF-8 + BOM, respeita o filtro de período                                       |
 
 ### 📋 Requisitos
 
-| Requisito | Versão |
-|-----------|--------|
+| Requisito | Versão                 |
+| --------- | ---------------------- |
 | GLPI      | `>= 11.0.0` e `< 11.1` |
-| PHP       | `>= 8.2` |
+| PHP       | `>= 8.2`               |
 
 ---
 
@@ -281,10 +281,5 @@ GNU General Public License v2.0 or later (**GPL-2.0+**).
 
 - **Olivier Moron** — Original author
 - **Kadosh** — GLPI 11 compatibility
-- **v5.0.0 refactor** — services + Twig + ITIL features
+- **v5.0.0 refactor by Claude** — services + Twig + ITIL features
 
----
-
-<p align="center">
-  <sub>Made with ❤️ for the GLPI community</sub>
-</p>
