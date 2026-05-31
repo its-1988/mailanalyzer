@@ -13,13 +13,14 @@ if (!defined('GLPI_ROOT')) {
 Session::checkLoginUser();
 Session::checkRight('config', READ);
 
-if (isset($_POST['filter_stats'])) {
-    Session::checkCSRF($_POST);
-    $allowed = ['7days', '30days', '90days', 'all'];
-    $period  = $_POST['period'] ?? '30days';
-    if (in_array($period, $allowed, true)) {
-        $_SESSION['plugin_mailanalyzer_stats_period'] = $period;
-    }
+// Selecting a dashboard period is a harmless view preference, so this is a GET:
+// the kernel does not CSRF-check bodyless GET requests. (The previous POST form
+// also called Session::checkCSRF() manually, which double-consumed the token
+// the kernel had already validated — an automatic AccessDenied.)
+$allowed = ['7days', '30days', '90days', 'all'];
+$period  = $_GET['period'] ?? '';
+if (in_array($period, $allowed, true)) {
+    $_SESSION['plugin_mailanalyzer_stats_period'] = $period;
 }
 
 Html::back();

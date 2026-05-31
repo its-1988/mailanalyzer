@@ -139,7 +139,7 @@ class PluginMailanalyzerInstaller
 
     public static function uninstall(): bool
     {
-        // Preserve data tables — purge via bin/console mailanalyzer:cleanup
+        // Preserve data tables — purge via bin/console plugins:mailanalyzer:cleanup
         // or drop manually if needed.
 
         $cron = new CronTask();

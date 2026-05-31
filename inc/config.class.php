@@ -52,12 +52,16 @@ class PluginMailanalyzerConfig extends CommonDBTM
      */
     public static function showConfigForm(): bool
     {
+        global $CFG_GLPI;
+
         $config = Config::getConfigurationValues('plugin:mailanalyzer');
         $config = array_merge(self::defaults(), $config);
 
         TemplateRenderer::getInstance()->display('@mailanalyzer/config.html.twig', [
             'config'           => $config,
-            'form_action'      => Toolbox::getItemTypeFormURL('Config'),
+            // Submitted via AJAX to our own endpoint (see public/js/config.js)
+            // so GLPI attaches a valid page CSRF token in the request header.
+            'form_action'      => $CFG_GLPI['root_doc'] . '/plugins/mailanalyzer/ajax/saveconfig.php',
             'csrf_token_value' => Session::getNewCSRFToken(),
             'incident_type_id' => Ticket::INCIDENT_TYPE,
             'request_type_id'  => Ticket::DEMAND_TYPE,
@@ -83,6 +87,29 @@ class PluginMailanalyzerConfig extends CommonDBTM
     private static function showHealthCheck(): void
     {
         PluginMailanalyzerStats::showHealthCheck();
+    }
+
+    /**
+     * Persist posted settings into the `plugin:mailanalyzer` config context.
+     * Only known keys are stored (whitelisted from defaults()), each cast to the
+     * type of its default — so junk fields (csrf token, submit button, …) and
+     * unknown keys are ignored.
+     *
+     * @param array<string, mixed> $post
+     */
+    public static function saveFromPost(array $post): void
+    {
+        $values = [];
+        foreach (self::defaults() as $key => $default) {
+            if (!array_key_exists($key, $post)) {
+                continue;
+            }
+            $values[$key] = is_int($default) ? (int) $post[$key] : trim((string) $post[$key]);
+        }
+
+        if ($values !== []) {
+            Config::setConfigurationValues('plugin:mailanalyzer', $values);
+        }
     }
 
     /**

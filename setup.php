@@ -26,7 +26,7 @@ along with this plugin. If not, see <http://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------
  */
 
-define("PLUGIN_MAILANALYZER_VERSION", "5.0.0");
+define("PLUGIN_MAILANALYZER_VERSION", "5.0.3");
 // Minimal GLPI version, inclusive
 define('PLUGIN_MAILANALYZER_MIN_GLPI', '11.0.0');
 // Maximum GLPI version, exclusive
@@ -69,6 +69,8 @@ function plugin_init_mailanalyzer(): void
     if (Session::haveRightsOr('config', [READ, UPDATE])) {
         Plugin::registerClass('PluginMailanalyzerConfig', ['addtabon' => 'Config']);
         $PLUGIN_HOOKS['config_page']['mailanalyzer'] = 'front/config.form.php';
+        // Submits the settings form via AJAX so a valid page CSRF token is used.
+        $PLUGIN_HOOKS['add_javascript']['mailanalyzer'] = 'js/config.js';
     }
 
     // Native GLPI Search registration for the audit log + message-id table
@@ -85,23 +87,27 @@ function plugin_mailanalyzer_getMenuContent(): array|false
     if (!Session::haveRight('config', READ)) {
         return false;
     }
+
+    global $CFG_GLPI;
+    $base = $CFG_GLPI['root_doc'] . '/plugins/mailanalyzer';
+
     return [
         'title' => __('Mail Analyzer', 'mailanalyzer'),
-        'page'  => Plugin::getWebDir('mailanalyzer') . '/front/auditlog.php',
+        'page'  => $base . '/front/auditlog.php',
         'icon'  => 'ti ti-mail',
         'links' => [
-            'search' => Plugin::getWebDir('mailanalyzer') . '/front/auditlog.php',
-            'config' => Plugin::getWebDir('mailanalyzer') . '/front/config.form.php',
+            'search' => $base . '/front/auditlog.php',
+            'config' => $base . '/front/config.form.php',
         ],
         'options' => [
             'audit' => [
                 'title' => PluginMailanalyzerStats::getTypeName(2),
-                'page'  => Plugin::getWebDir('mailanalyzer') . '/front/auditlog.php',
+                'page'  => $base . '/front/auditlog.php',
                 'icon'  => 'fas fa-history',
             ],
             'messageid' => [
                 'title' => PluginMailanalyzerMessageId::getTypeName(2),
-                'page'  => Plugin::getWebDir('mailanalyzer') . '/front/messageid.php',
+                'page'  => $base . '/front/messageid.php',
                 'icon'  => 'fas fa-fingerprint',
             ],
         ],

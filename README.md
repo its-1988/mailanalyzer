@@ -13,7 +13,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/GLPI-11.0-blue?style=flat-square" alt="GLPI 11">
   <img src="https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2+">
-  <img src="https://img.shields.io/badge/Version-5.0.0-orange?style=flat-square" alt="Version 5.0.0">
+  <img src="https://img.shields.io/badge/Version-5.0.3-orange?style=flat-square" alt="Version 5.0.3">
   <img src="https://img.shields.io/badge/License-GPLv2%2B-green?style=flat-square" alt="GPLv2+">
 </p>
 
@@ -43,7 +43,7 @@ Combines related emails into one ticket, blocks duplicates, classifies Incident 
 | 📋 **Full audit log**            | Every decision stored with `from_email`, `subject`, `subject_hash`, `decision_reason` — searchable via GLPI Search Engine          |
 | 📤 **CSV export**                | UTF-8 + BOM (Excel-friendly), respects the dashboard period filter                                                                 |
 | ⏱️ **Auto cleanup**              | Native GLPI CronTask trims orphans and old stats daily                                                                             |
-| 🛠️ **CLI cleanup**              | `php bin/console mailanalyzer:cleanup` with `--dry-run`, `--stats-days=N`                                                          |
+| 🛠️ **CLI cleanup**              | `php bin/console plugins:mailanalyzer:cleanup` with `--dry-run`, `--stats-days=N`                                                          |
 | 🌍 **i18n**                      | `en_GB`, `ru_RU`, `pt_BR` shipped                                                                                                  |
 
 ### 📋 Requirements
@@ -97,13 +97,13 @@ flowchart TD
 
 ```bash
 # Purge orphan message_id rows + show summary
-php bin/console mailanalyzer:cleanup
+php bin/console plugins:mailanalyzer:cleanup
 
 # Also trim stats older than 90 days
-php bin/console mailanalyzer:cleanup --stats-days=90
+php bin/console plugins:mailanalyzer:cleanup --stats-days=90
 
 # Preview only — no changes
-php bin/console mailanalyzer:cleanup --dry-run
+php bin/console plugins:mailanalyzer:cleanup --dry-run
 ```
 
 ### 📁 File structure
@@ -132,7 +132,7 @@ mailanalyzer/
 │   ├── messageid.class.php       # Search options for message_id table
 │   ├── config.class.php          # Settings tab
 │   ├── crontask.class.php        # Native CronTask for housekeeping
-│   └── cleanupcommand.class.php  # bin/console mailanalyzer:cleanup
+│   └── cleanupcommand.class.php  # bin/console plugins:mailanalyzer:cleanup
 ├── templates/                    # Twig (Bootstrap 5)
 │   ├── config.html.twig
 │   ├── dashboard.html.twig
@@ -182,7 +182,7 @@ mailanalyzer/
 | 📋 **Полный аудит-лог**       | Каждое решение с `from_email`, `subject`, `subject_hash`, `decision_reason` — ищется через GLPI Search |
 | 📤 **Экспорт CSV**            | UTF-8 + BOM (открывается в Excel без проблем), фильтр по периоду                                       |
 | ⏱️ **Авточистка**             | Нативный GLPI CronTask убирает осиротевшие записи и старую статистику                                  |
-| 🛠️ **CLI-очистка**           | `php bin/console mailanalyzer:cleanup` с `--dry-run`, `--stats-days=N`                                 |
+| 🛠️ **CLI-очистка**           | `php bin/console plugins:mailanalyzer:cleanup` с `--dry-run`, `--stats-days=N`                                 |
 | 🌍 **i18n**                   | В комплекте `ru_RU`, `en_GB`, `pt_BR`                                                                  |
 
 ### 📋 Требования
@@ -224,13 +224,13 @@ mailanalyzer/
 
 ```bash
 # Очистка осиротевших записей + сводка
-php bin/console mailanalyzer:cleanup
+php bin/console plugins:mailanalyzer:cleanup
 
 # Дополнительно подрезать статистику старше 90 дней
-php bin/console mailanalyzer:cleanup --stats-days=90
+php bin/console plugins:mailanalyzer:cleanup --stats-days=90
 
 # Только просмотр — без изменений
-php bin/console mailanalyzer:cleanup --dry-run
+php bin/console plugins:mailanalyzer:cleanup --dry-run
 ```
 
 ### 🌐 Перевод
@@ -283,3 +283,8 @@ GNU General Public License v2.0 or later (**GPL-2.0+**).
 - **Kadosh** — GLPI 11 compatibility
 - **v5.0.0 refactor by Claude** — services + Twig + ITIL features
 
+---
+
+<p align="center">
+  <sub>Made with ❤️ for the GLPI community</sub>
+</p>

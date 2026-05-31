@@ -14,17 +14,24 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Console command to purge orphans and trim old stats.
  *
- *   php bin/console mailanalyzer:cleanup
- *   php bin/console mailanalyzer:cleanup --stats-days=90
- *   php bin/console mailanalyzer:cleanup --dry-run
+ *   php bin/console plugins:mailanalyzer:cleanup
+ *   php bin/console plugins:mailanalyzer:cleanup --stats-days=90
+ *   php bin/console plugins:mailanalyzer:cleanup --dry-run
+ *
+ * GLPI 11's CommandLoader requires plugin commands to live in the
+ * `plugins:<plugin_key>:` namespace — the expected regex is
+ * /^plugins:mailanalyzer(:[^:]+)+$/ (src/Glpi/Console/CommandLoader.php).
+ * A command outside that namespace is rejected (not registered) AND logs an
+ * E_USER_WARNING on every console run. We set the name via setName() in
+ * configure() — matching GLPI core — instead of the deprecated
+ * `protected static $defaultName` Symfony property.
  */
 class PluginMailanalyzerCleanupCommand extends Command
 {
-    protected static $defaultName = 'mailanalyzer:cleanup';
-
     protected function configure(): void
     {
         $this
+            ->setName('plugins:mailanalyzer:cleanup')
             ->setDescription('Purge orphaned message_id rows and old statistics')
             ->setHelp('Removes message_id rows pointing to deleted tickets, and optionally trims old stats entries.')
             ->addOption(

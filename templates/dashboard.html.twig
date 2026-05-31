@@ -6,15 +6,14 @@
 {# Period filter + export #}
 <div class="card mb-3">
    <div class="card-body d-flex flex-wrap align-items-center gap-2">
-      <form method="post" action="{{ stats_url }}" class="d-flex align-items-center gap-2 mb-0">
-         <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token_value }}">
+      <form method="get" action="{{ stats_url }}" class="d-flex align-items-center gap-2 mb-0">
          <label class="form-label mb-0 me-1">{{ __('Period', 'mailanalyzer') }}:</label>
          <select name="period" class="form-select form-select-sm" style="width:auto;">
             {% for k, label in periods %}
                <option value="{{ k }}" {% if period == k %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
          </select>
-         <button type="submit" name="filter_stats" class="btn btn-sm btn-primary">
+         <button type="submit" class="btn btn-sm btn-primary">
             <i class="fas fa-filter me-1"></i> {{ _x('button', 'Apply') }}
          </button>
       </form>

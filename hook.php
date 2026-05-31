@@ -37,7 +37,7 @@ function plugin_mailanalyzer_install(): bool
 
 /**
  * Uninstall plugin: keep data tables by default (preserves history).
- * Use bin/console mailanalyzer:cleanup or drop tables manually if needed.
+ * Use bin/console plugins:mailanalyzer:cleanup or drop tables manually if needed.
  */
 function plugin_mailanalyzer_uninstall(): bool
 {

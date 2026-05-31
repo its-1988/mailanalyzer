@@ -113,6 +113,9 @@ class PluginMailanalyzerStats extends CommonDBTM
      */
     public static function showDashboard(string $period = '30days'): void
     {
+        global $CFG_GLPI;
+        $base = $CFG_GLPI['root_doc'] . '/plugins/mailanalyzer';
+
         $summary = self::getSummary($period);
         $events  = self::getRecentEvents(15);
         $total   = array_sum($summary);
@@ -165,8 +168,8 @@ class PluginMailanalyzerStats extends CommonDBTM
             'summary'     => $summary,
             'total'       => $total,
             'events'      => $rows,
-            'stats_url'   => Plugin::getWebDir('mailanalyzer') . '/front/stats.php',
-            'export_url'  => Plugin::getWebDir('mailanalyzer') . '/front/export.php',
+            'stats_url'   => $base . '/front/stats.php',
+            'export_url'  => $base . '/front/export.php',
             'csrf_token_value' => Session::getNewCSRFToken(),
         ]);
     }
